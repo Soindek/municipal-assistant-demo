@@ -1,5 +1,5 @@
-// Csereszabatos LLM- és embedding-interfészek. A RAG-mag és az ingestion
-// csak ezekre épül; az OpenAI a backend/src/llm/openai.ts-ben van bekötve.
+// Pluggable LLM and embedding interfaces. The RAG core and ingestion build
+// only on these; OpenAI is wired in via backend/src/llm/openai.ts.
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -8,7 +8,7 @@ export interface ChatMessage {
 
 export interface EmbeddingClient {
   readonly model: string;
-  /** Több szöveg beágyazása egy körben; a kimenet sorrendje a bemenettel egyezik. */
+  /** Embed multiple texts in one round; output order matches the input. */
   embed(texts: string[], signal?: AbortSignal): Promise<number[][]>;
 }
 
@@ -16,8 +16,8 @@ export interface ChatClient {
   readonly model: string;
 
   /**
-   * Streamelt válasz: minden token-darabra meghívja `onToken`-t, és a végén
-   * visszaadja a teljes szöveget.
+   * Streamed response: calls `onToken` for every token fragment, and returns
+   * the full text at the end.
    */
   streamChat(
     messages: ChatMessage[],
@@ -25,7 +25,7 @@ export interface ChatClient {
     signal?: AbortSignal,
   ): Promise<string>;
 
-  /** Egylövéses, nem streamelt válasz (pl. követő-kérdés átírása). */
+  /** One-shot, non-streamed response (e.g. follow-up question rewriting). */
   complete(messages: ChatMessage[], signal?: AbortSignal): Promise<string>;
 }
 

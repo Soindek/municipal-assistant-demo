@@ -10,9 +10,9 @@ export interface RetrievedChunk {
   category: string;
   sourceUrl: string;
   publishedAt: Date | null;
-  /** Koszinusz-hasonlóság (0..1) — a minScore küszöb ezt nézi. */
+  /** Cosine similarity (0..1) — this is what the minScore threshold checks. */
   similarity: number;
-  /** Reciprocal Rank Fusion pontszám — a sorrend ezt követi. */
+  /** Reciprocal Rank Fusion score — the ordering follows this. */
   rrf: number;
 }
 
@@ -20,15 +20,15 @@ function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.join(',')}]`;
 }
 
-// RRF konstans (a szokásos érték a szakirodalomban).
+// RRF constant (the value commonly used in the literature).
 const RRF_K = 60;
 
 /**
- * Hibrid keresés: szemantikus (pgvector HNSW koszinusz) + magyar full-text
- * (GIN), Reciprocal Rank Fusion-nel egyesítve (BRIEF 6. pont).
+ * Hybrid search: semantic (pgvector HNSW cosine) + Hungarian full-text
+ * (GIN), combined with Reciprocal Rank Fusion (BRIEF point 6).
  *
- * A `similarity` mező a legjobb szemantikus koszinusz-hasonlóság az adott
- * chunkra — erre köt a hívó a minScore küszöbbel.
+ * The `similarity` field is the best semantic cosine similarity for the given
+ * chunk — the caller relies on this for the minScore threshold.
  */
 export async function hybridSearch(
   queryEmbedding: number[],

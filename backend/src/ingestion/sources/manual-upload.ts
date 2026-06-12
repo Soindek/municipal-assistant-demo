@@ -11,15 +11,15 @@ import type {
 import { repoRoot } from '../../paths.js';
 
 const OptionsSchema = z.object({
-  /** Helyi mappa a feldolgozandó fájlokkal (repo gyökérhez relatív). */
+  /** Local folder with the files to process (relative to the repo root). */
   dir: z.string().default('./data/uploads'),
-  /** Alapértelmezett kategória, ha nincs sidecar meta. */
+  /** Default category if there is no sidecar meta. */
   defaultCategory: z.string().default('rendeletek'),
-  /** Ha megadod, a sourceUrl ebből + a fájlnévből épül (különben file://). */
+  /** If set, sourceUrl is built from this + the file name (otherwise file://). */
   baseUrl: z.string().url().optional(),
 });
 
-/** Fájlonként opcionális `<fájlnév>.meta.json` írhatja felül a metaadatot. */
+/** An optional per-file `<filename>.meta.json` can override the metadata. */
 const MetaSchema = z
   .object({
     title: z.string(),
@@ -47,8 +47,8 @@ async function readMeta(metaPath: string): Promise<z.infer<typeof MetaSchema>> {
 }
 
 /**
- * `manual-upload` adapter — egy helyi mappából olvas. Ezzel a teljes pipeline
- * azonnal tesztelhető, valódi külső forrás nélkül (BRIEF 5./10. pont).
+ * `manual-upload` adapter — reads from a local folder. This makes the whole
+ * pipeline immediately testable without a real external source (BRIEF points 5/10).
  */
 export function createManualUploadSource(options: Record<string, unknown>): DocumentSource {
   const opts = OptionsSchema.parse(options);
@@ -62,7 +62,7 @@ export function createManualUploadSource(options: Record<string, unknown>): Docu
       try {
         entries = await readdir(dir);
       } catch {
-        ctx.logger.warn(`manual-upload: a mappa nem olvasható: ${dir}`);
+        ctx.logger.warn(`manual-upload: folder not readable: ${dir}`);
         return;
       }
 
@@ -71,7 +71,7 @@ export function createManualUploadSource(options: Record<string, unknown>): Docu
         const ext = extname(entry).toLowerCase();
         const mimeType = MIME_BY_EXT[ext];
         if (!mimeType) {
-          ctx.logger.warn(`manual-upload: kihagyva (nem támogatott típus): ${entry}`);
+          ctx.logger.warn(`manual-upload: skipped (unsupported type): ${entry}`);
           continue;
         }
 
@@ -89,7 +89,7 @@ export function createManualUploadSource(options: Record<string, unknown>): Docu
               ? new URL(entry, opts.baseUrl).toString()
               : pathToFileURL(absPath).toString()),
           mimeType,
-          // Olcsó változás-token: módosítási idő + méret.
+          // Cheap change token: modification time + size.
           changeToken: `${Math.floor(info.mtimeMs)}:${info.size}`,
           publishedAt: meta.publishedAt ? new Date(meta.publishedAt) : info.mtime,
           language: 'hu',

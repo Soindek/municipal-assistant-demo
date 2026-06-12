@@ -4,7 +4,7 @@ import type { ChatClient, ChatMessage, EmbeddingClient } from './types.js';
 
 let client: OpenAI | null = null;
 
-/** Megosztott OpenAI kliens. A kulcs KIZÁRÓLAG env-ből (OPENAI_API_KEY). */
+/** Shared OpenAI client. The key comes ONLY from the env (OPENAI_API_KEY). */
 function getClient(): OpenAI {
   if (!client) {
     client = new OpenAI({ apiKey: getEnv().OPENAI_API_KEY });
@@ -18,7 +18,7 @@ export function createOpenAIEmbeddingClient(model: string): EmbeddingClient {
     async embed(texts, signal) {
       if (texts.length === 0) return [];
       const res = await getClient().embeddings.create({ model, input: texts }, { signal });
-      // A válasz indexelt; a biztonság kedvéért index szerint rendezzük.
+      // The response is indexed; sort by index to be safe.
       return res.data
         .slice()
         .sort((a, b) => a.index - b.index)

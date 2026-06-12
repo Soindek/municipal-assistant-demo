@@ -2,11 +2,11 @@ import type { TenantConfig } from '@municipal-assistant/shared';
 import type { DeepPartial } from './deep-merge.js';
 
 /**
- * Józan magyar önkormányzati alapértelmezések. A tenant-fájlok csak az
- * eltéréseket adják meg; ezeket a loader mélyen a tenant alá fésüli.
+ * Sensible Hungarian municipal defaults. Tenant files only specify the
+ * differences; the loader deep-merges those under the tenant.
  *
- * A rendszerprompt a hallucináció-tiltást és az idézési szabályt is tartalmazza
- * (BRIEF 8. pont). A {displayName} tokent a backend helyettesíti be.
+ * The system prompt includes the hallucination ban and the citation rule
+ * (BRIEF point 8). The {displayName} token is substituted by the backend.
  */
 export const defaultConfig: DeepPartial<TenantConfig> = {
   locale: 'hu-HU',

@@ -2,12 +2,12 @@ import type { ChatTurn, Source, TenantConfig } from '@municipal-assistant/shared
 import type { ChatClient, ChatMessage } from '../llm/types.js';
 import type { RetrievedChunk } from './search.js';
 
-/** Rendszerprompt a sablonból, a {displayName} behelyettesítésével. */
+/** System prompt from the template, substituting {displayName}. */
 export function buildSystemPrompt(config: TenantConfig): string {
   return config.rag.systemPromptTemplate.replaceAll('{displayName}', config.displayName);
 }
 
-/** A találatokat számozott, idézhető [Forrás N] blokká fűzi az LLM-nek. */
+/** Joins the results into a numbered, citable [Forrás N] block for the LLM. */
 export function buildContextBlock(chunks: RetrievedChunk[]): string {
   return chunks
     .map((c, i) => {
@@ -19,7 +19,7 @@ export function buildContextBlock(chunks: RetrievedChunk[]): string {
     .join('\n\n');
 }
 
-/** A válasz forrásai a UI-nak; dokumentum+szakasz szerint deduplikálva. */
+/** The answer's sources for the UI; deduplicated by document + section. */
 export function buildSources(chunks: RetrievedChunk[]): Source[] {
   const seen = new Set<string>();
   const sources: Source[] = [];
@@ -38,7 +38,7 @@ export function buildSources(chunks: RetrievedChunk[]): Source[] {
   return sources;
 }
 
-/** A végső chat-üzenetek: rendszerprompt + kontextus + kérdés. */
+/** The final chat messages: system prompt + context + question. */
 export function buildAnswerMessages(
   config: TenantConfig,
   question: string,
@@ -58,8 +58,9 @@ export function buildAnswerMessages(
 }
 
 /**
- * Követő kérdésnél a beszélgetésből önálló keresési kérdést gyárt egy olcsó
- * LLM-hívással (BRIEF 3. pont). Előzmény nélkül az eredeti kérdést adja vissza.
+ * For a follow-up question, produces a standalone search query from the
+ * conversation with a cheap LLM call (BRIEF point 3). Without history, returns
+ * the original question.
  */
 export async function rewriteFollowUp(
   chat: ChatClient,

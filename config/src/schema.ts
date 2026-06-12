@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import type { TenantConfig } from '@municipal-assistant/shared';
 
-/** Egy forrás-leíró validációja (melyik adapter, milyen options). */
+/** Validation of a single source descriptor (which adapter, which options). */
 export const sourceDescriptorSchema = z.object({
   adapter: z.string().min(1),
   options: z.record(z.unknown()).default({}),
 });
 
-/** A teljes TenantConfig zod-sémája. A merge UTÁN, kész configon validál. */
+/** The full TenantConfig zod schema. Validates AFTER the merge, on the finished config. */
 export const tenantConfigSchema = z.object({
   tenantId: z.string().min(1),
   displayName: z.string().min(1),
@@ -25,7 +25,7 @@ export const tenantConfigSchema = z.object({
   }),
 
   categories: z.record(z.string()).refine((c) => Object.keys(c).length > 0, {
-    message: 'Legalább egy kategória szükséges',
+    message: 'At least one category is required',
   }),
 
   sources: z.array(sourceDescriptorSchema),
@@ -44,7 +44,7 @@ export const tenantConfigSchema = z.object({
   }),
 });
 
-// Fordításidejű garancia, hogy a séma kimenete megfelel a shared típusnak.
+// Compile-time guarantee that the schema output matches the shared type.
 type SchemaOutput = z.infer<typeof tenantConfigSchema>;
 const _typeCheck: TenantConfig = {} as SchemaOutput;
 void _typeCheck;

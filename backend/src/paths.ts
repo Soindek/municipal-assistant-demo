@@ -1,4 +1,4 @@
 import { fileURLToPath } from 'node:url';
 
-/** A monorepo gyökere (a backend/src/ -ből két szinttel feljebb). */
+/** The monorepo root (two levels up from backend/src/). */
 export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));

@@ -6,9 +6,9 @@ import { getPool, closePool } from './pool.js';
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
 
 /**
- * Könnyű migrációs runner: sorszámozott .sql fájlokat alkalmaz egyszer,
- * az állapotot a schema_migrations táblában tartja számon. Nincs külön
- * migrációs framework — ennyi a projektnek bőven elég.
+ * Lightweight migration runner: applies numbered .sql files once,
+ * tracking state in the schema_migrations table. No dedicated
+ * migration framework — this is more than enough for the project.
  */
 export async function migrate(): Promise<void> {
   const pool = getPool();
@@ -30,7 +30,7 @@ export async function migrate(): Promise<void> {
 
   for (const file of files) {
     if (applied.has(file)) {
-      console.log(`= ${file} (már alkalmazva)`);
+      console.log(`= ${file} (already applied)`);
       continue;
     }
     const sql = await readFile(join(migrationsDir, file), 'utf8');
@@ -40,19 +40,19 @@ export async function migrate(): Promise<void> {
       await client.query(sql);
       await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file]);
       await client.query('COMMIT');
-      console.log(`+ ${file} (alkalmazva)`);
+      console.log(`+ ${file} (applied)`);
     } catch (err) {
       await client.query('ROLLBACK');
-      throw new Error(`Migráció hiba (${file}): ${(err as Error).message}`, { cause: err });
+      throw new Error(`Migration error (${file}): ${(err as Error).message}`, { cause: err });
     } finally {
       client.release();
     }
   }
 
-  console.log('Migrációk kész.');
+  console.log('Migrations complete.');
 }
 
-// Közvetlen futtatás:  npm run migrate
+// Direct execution:  npm run migrate
 const invokedDirectly = process.argv[1] === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
   migrate()

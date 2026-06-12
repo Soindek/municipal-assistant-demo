@@ -8,23 +8,23 @@ export { defaultConfig } from './default.js';
 export { tenantConfigSchema } from './schema.js';
 
 /**
- * Statikus tenant-regiszter. Új település indítása: ide egy új bejegyzés
- * (és — ha kell — egy új adapter a backend registry-ben). Nincs admin-felület
- * a bérlőkezeléshez (BRIEF 9. pont).
+ * Static tenant registry. Onboarding a new municipality: add a new entry here
+ * (and — if needed — a new adapter in the backend registry). There is no admin
+ * UI for tenant management (BRIEF point 9).
  */
 const tenants: Record<string, DeepPartial<TenantConfig>> = {
   vacratot,
 };
 
 /**
- * Betölti és validálja egy tenant configját: default <- tenant mély merge,
- * majd zod-validáció. Hibás config esetén beszédes hibát dob.
+ * Loads and validates a tenant's config: default <- tenant deep merge, then
+ * zod validation. Throws a descriptive error for an invalid config.
  */
 export function loadTenantConfig(tenantId: string): TenantConfig {
   const overrides = tenants[tenantId];
   if (!overrides) {
-    const known = Object.keys(tenants).join(', ') || '(nincs)';
-    throw new Error(`Ismeretlen tenant: "${tenantId}". Ismert tenantok: ${known}`);
+    const known = Object.keys(tenants).join(', ') || '(none)';
+    throw new Error(`Unknown tenant: "${tenantId}". Known tenants: ${known}`);
   }
 
   const merged = deepMerge(defaultConfig as TenantConfig, overrides);
@@ -33,12 +33,12 @@ export function loadTenantConfig(tenantId: string): TenantConfig {
     const issues = result.error.issues
       .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
       .join('\n');
-    throw new Error(`Érvénytelen tenant config (${tenantId}):\n${issues}`);
+    throw new Error(`Invalid tenant config (${tenantId}):\n${issues}`);
   }
   return result.data as TenantConfig;
 }
 
-/** Az ismert tenant-azonosítók. */
+/** The known tenant identifiers. */
 export function listTenantIds(): string[] {
   return Object.keys(tenants);
 }

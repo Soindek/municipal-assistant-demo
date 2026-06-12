@@ -8,15 +8,15 @@ export interface PageText {
 export interface ExtractedDocument {
   pages: PageText[];
   /**
-   * true, ha gyakorlatilag nincs kinyerhető szöveg — valószínűleg szkennelt PDF,
-   * ahol OCR kellene. (BRIEF 12. pont: kezdésnek Tesseract `hun` elég.)
+   * true if there is practically no extractable text — likely a scanned PDF
+   * that would need OCR. (BRIEF point 12: Tesseract `hun` is enough to start.)
    */
   likelyScanned: boolean;
 }
 
-/** PDF szövegkinyerés oldalanként, a pdfjs-dist legacy (Node) buildjével. */
+/** Per-page PDF text extraction using the pdfjs-dist legacy (Node) build. */
 async function extractPdf(bytes: Uint8Array): Promise<PageText[]> {
-  // Dinamikus import: a pdfjs ESM, és csak ingestionkor kell betölteni.
+  // Dynamic import: pdfjs is ESM and only needs to be loaded during ingestion.
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await pdfjs.getDocument({
     data: bytes,
@@ -41,11 +41,11 @@ async function extractPdf(bytes: Uint8Array): Promise<PageText[]> {
 }
 
 /**
- * Letöltött tartalomból oldalankénti szöveg. PDF-et és sima szöveget kezel.
+ * Per-page text from fetched content. Handles PDF and plain text.
  *
- * TODO (OCR-fallback, BRIEF 3./5./12. pont): ha `likelyScanned`, futtassunk
- * Tesseract `hun` OCR-t az oldalképeken. Ez a bekötési pont — a pipeline már
- * jelez, ha egy dokumentum szkenneltnek tűnik.
+ * TODO (OCR fallback, BRIEF points 3/5/12): if `likelyScanned`, run Tesseract
+ * `hun` OCR on the page images. This is the integration point — the pipeline
+ * already signals when a document appears to be scanned.
  */
 export async function extractText(content: FetchedContent): Promise<ExtractedDocument> {
   let pages: PageText[];
@@ -54,7 +54,7 @@ export async function extractText(content: FetchedContent): Promise<ExtractedDoc
   } else if (content.mimeType.startsWith('text/')) {
     pages = [{ pageNumber: 1, text: new TextDecoder('utf-8').decode(content.bytes).trim() }];
   } else {
-    throw new Error(`Nem támogatott mime-típus a szövegkinyeréshez: ${content.mimeType}`);
+    throw new Error(`Unsupported mime type for text extraction: ${content.mimeType}`);
   }
 
   const totalChars = pages.reduce((sum, p) => sum + p.text.length, 0);

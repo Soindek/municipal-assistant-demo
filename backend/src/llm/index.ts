@@ -5,9 +5,9 @@ import type { LlmClients } from './types.js';
 export type { ChatClient, ChatMessage, EmbeddingClient, LlmClients } from './types.js';
 
 /**
- * A tenant config által megnevezett modellekből épít LLM-klienseket.
- * Jelenleg OpenAI; más providert ide bekötve, a config modellnevét értelmezve
- * lehet hozzáadni — a hívó kód nem változik.
+ * Builds LLM clients from the models named in the tenant config.
+ * Currently OpenAI; another provider can be added by wiring it in here and
+ * interpreting the config's model name — the calling code does not change.
  */
 export function createLlmClients(config: TenantConfig): LlmClients {
   return {

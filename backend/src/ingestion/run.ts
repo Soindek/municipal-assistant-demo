@@ -7,7 +7,7 @@ import { consoleLogger } from '../logger.js';
 import { ingestSource, type IngestStats } from './pipeline.js';
 import { createSource } from './registry.js';
 
-/** Opcionális `--source=<adapter>` szűrő (a `seed` script erre épül). */
+/** Optional `--source=<adapter>` filter (the `seed` script relies on this). */
 function parseSourceFilter(): string | null {
   const arg = process.argv.find((a) => a.startsWith('--source='));
   return arg ? arg.slice('--source='.length) : null;
@@ -24,27 +24,27 @@ export async function run(): Promise<IngestStats> {
   const totals: IngestStats = { processed: 0, skipped: 0, scanned: 0, failed: 0 };
   if (descriptors.length === 0) {
     consoleLogger.warn(
-      `Nincs feldolgozandó forrás (tenant=${config.tenantId}, filter=${filter ?? 'nincs'}).`,
+      `No sources to process (tenant=${config.tenantId}, filter=${filter ?? 'none'}).`,
     );
     return totals;
   }
 
   for (const descriptor of descriptors) {
     const source = createSource(descriptor);
-    consoleLogger.info(`Forrás indul: ${source.name}`);
+    consoleLogger.info(`Source starting: ${source.name}`);
     const stats = await ingestSource(source, {
       tenantId: config.tenantId,
       embedding,
       logger: consoleLogger,
     });
-    consoleLogger.info(`Forrás kész: ${source.name} → ${JSON.stringify(stats)}`);
+    consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
     totals.processed += stats.processed;
     totals.skipped += stats.skipped;
     totals.scanned += stats.scanned;
     totals.failed += stats.failed;
   }
 
-  consoleLogger.info(`Összesen: ${JSON.stringify(totals)}`);
+  consoleLogger.info(`Total: ${JSON.stringify(totals)}`);
   return totals;
 }
 

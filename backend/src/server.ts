@@ -12,7 +12,7 @@ function main(): void {
 
   app.listen(env.PORT, () => {
     consoleLogger.info(
-      `Backend fut: http://localhost:${env.PORT}  (tenant=${config.tenantId}, chatModel=${config.rag.chatModel})`,
+      `Backend running: http://localhost:${env.PORT}  (tenant=${config.tenantId}, chatModel=${config.rag.chatModel})`,
     );
   });
 }

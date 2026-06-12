@@ -1,4 +1,4 @@
-/** Rekurzív Partial — a tenant-fájlok csak az eltéréseket adják meg. */
+/** Recursive Partial — tenant files only specify the differences. */
 export type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -6,8 +6,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Mély összefésülés: a `source` (tenant) felülírja a `base` (default) értékeit.
- * Sima objektumokat rekurzívan fésül, tömböket és primitíveket cserél.
+ * Deep merge: `source` (tenant) overrides the values of `base` (default).
+ * Plain objects are merged recursively; arrays and primitives are replaced.
  */
 export function deepMerge<T>(base: T, source: DeepPartial<T>): T {
   if (!isPlainObject(base) || !isPlainObject(source)) {

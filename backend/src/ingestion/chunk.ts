@@ -3,22 +3,22 @@ import type { PageText } from './extract.js';
 export interface RawChunk {
   chunkIndex: number;
   content: string;
-  /** pl. "12. §" — a §-tudatos darabolásból, ha azonosítható. */
+  /** e.g. "12. §" — from the §-aware chunking, if identifiable. */
   sectionRef: string | null;
-  /** Az az oldal, ahol a chunk kezdődik. */
+  /** The page where the chunk starts. */
   pageNumber: number | null;
-  /** Durva becslés (≈ char/4), csak tárolásra/diagnosztikára. */
+  /** Rough estimate (≈ char/4), only for storage/diagnostics. */
   tokenCount: number;
 }
 
 export interface ChunkOptions {
-  /** Cél chunk-méret karakterben (≈ 375 token). */
+  /** Target chunk size in characters (≈ 375 tokens). */
   maxChars?: number;
-  /** Átfedés az egymást követő chunkok között (kontextus megtartása). */
+  /** Overlap between consecutive chunks (to preserve context). */
   overlapChars?: number;
 }
 
-// Magyar jogszabályi szakaszjel: "12. §", "12/A. §".
+// Hungarian legal section marker: "12. §", "12/A. §".
 const SECTION_RE = /(\d+(?:\/[A-ZÁÉÍÓÖŐÚÜŰ])?)\.\s*§/;
 
 interface Line {
@@ -26,7 +26,7 @@ interface Line {
   pageNumber: number;
 }
 
-/** Oldalakból sorokra bont (üres sorokat eldob). */
+/** Splits pages into lines (dropping empty lines). */
 function toLines(pages: PageText[]): Line[] {
   const lines: Line[] = [];
   for (const page of pages) {
@@ -42,7 +42,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** A §-tudatos darabolás magja. Sorokat halmoz a cél méretig, átfedéssel. */
+/** Core of the §-aware chunking. Accumulates lines up to the target size, with overlap. */
 export function chunkPages(pages: PageText[], opts: ChunkOptions = {}): RawChunk[] {
   const maxChars = opts.maxChars ?? 1500;
   const overlapChars = opts.overlapChars ?? 200;
@@ -68,7 +68,7 @@ export function chunkPages(pages: PageText[], opts: ChunkOptions = {}): RawChunk
   };
 
   for (const line of lines) {
-    // A sorban megjelenő szakaszjel frissíti az aktuális szekciót.
+    // A section marker appearing in the line updates the current section.
     const match = SECTION_RE.exec(line.text);
     if (match) currentSection = `${match[1]}. §`;
 
@@ -80,7 +80,7 @@ export function chunkPages(pages: PageText[], opts: ChunkOptions = {}): RawChunk
 
     if (buffer.length >= maxChars) {
       flush();
-      // Átfedés: az előző chunk farkát visszük tovább a kontextushoz.
+      // Overlap: carry over the tail of the previous chunk for context.
       const tail = buffer.slice(-overlapChars);
       buffer = tail;
       bufferPage = line.pageNumber;
@@ -89,7 +89,7 @@ export function chunkPages(pages: PageText[], opts: ChunkOptions = {}): RawChunk
   }
   flush();
 
-  // chunkIndex újraszámozása a végső sorrend szerint (a flush már sorszámoz,
-  // de az átfedés miatt biztosítjuk a folytonosságot).
+  // Renumber chunkIndex by the final order (flush already numbers them,
+  // but we ensure continuity because of the overlap).
   return chunks.map((c, i) => ({ ...c, chunkIndex: i }));
 }

@@ -7,32 +7,32 @@ import type {
 } from '@municipal-assistant/shared';
 
 /**
- * VARRAT #1 — `wordpress-accordion` adapter a vacratot.hu/dokumentumok oldalhoz.
+ * SEAM #1 — `wordpress-accordion` adapter for the vacratot.hu/dokumentumok page.
  *
- * Az oldal a Document Library Pro plugint használja: a dokumentumtár egy
- * DataTables, amit JS tölt `admin-ajax.php`-ból — a statikus HTML NEM tartalmazza
- * a PDF-linkeket. Ezért fejléc nélküli böngésző helyett a WordPress REST API
- * `wp/v2/media` végpontjáról listázzuk a PDF-eket (lapozással). Ehhez nem kell
- * extra függőség (globális fetch).
+ * The page uses the Document Library Pro plugin: the document library is a
+ * DataTables loaded by JS from `admin-ajax.php` — the static HTML does NOT
+ * contain the PDF links. So instead of a headless browser, we list the PDFs
+ * from the WordPress REST API `wp/v2/media` endpoint (with pagination). This
+ * needs no extra dependency (global fetch).
  *
- * ISMERT KORLÁT (dokumentált TODO): a REST `media` nem adja vissza a Document
- * Library Pro kategória-taxonómiáját (`dlp_category`), és a teljes médiatárat
- * listázza. Ezért a kategóriát a dokumentum címéből próbáljuk kitalálni
- * (categoryMap kulcsszavak), különben a defaultCategory-ra esünk vissza.
- * Pontos kategóriákhoz a 2. körben vagy a `dlp_document` REST-kitétele kell a
- * site-on, vagy az admin-ajax DataTables válasz feldolgozása, vagy Playwright.
+ * KNOWN LIMITATION (documented TODO): REST `media` does not return the Document
+ * Library Pro category taxonomy (`dlp_category`), and lists the entire media
+ * library. So we try to infer the category from the document title (categoryMap
+ * keywords), otherwise we fall back to defaultCategory. For accurate categories,
+ * round 2 needs either exposing `dlp_document` via REST on the site, processing
+ * the admin-ajax DataTables response, or Playwright.
  */
 
 const OptionsSchema = z.object({
-  /** A dokumentum-oldal URL-je; ebből származtatjuk a REST gyökeret. */
+  /** The document page URL; we derive the REST root from it. */
   baseUrl: z.string().url(),
-  /** Felülírható REST media végpont (különben {origin}/wp-json/wp/v2/media). */
+  /** Overridable REST media endpoint (otherwise {origin}/wp-json/wp/v2/media). */
   restMediaUrl: z.string().url().optional(),
-  /** Emberi kategória-címke → TenantConfig kategória-kulcs (heurisztikához). */
+  /** Human category label → TenantConfig category key (for the heuristic). */
   categoryMap: z.record(z.string()).optional(),
-  /** Visszaesési kategória, ha a címből nem következtethető ki. */
+  /** Fallback category if it cannot be inferred from the title. */
   defaultCategory: z.string().default('rendeletek'),
-  /** Mely mime-típusokat listázzuk. */
+  /** Which mime types to list. */
   mimeTypes: z.array(z.string()).default(['application/pdf']),
   perPage: z.number().int().positive().max(100).default(100),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
@@ -47,7 +47,7 @@ interface MediaItem {
   title?: { rendered?: string };
 }
 
-/** Egyszerű HTML-entitás dekódolás + tagek eltávolítása a címekhez. */
+/** Simple HTML entity decoding + tag removal for titles. */
 function decodeHtml(input: string): string {
   return input
     .replace(/<[^>]+>/g, '')
@@ -61,7 +61,7 @@ function decodeHtml(input: string): string {
     .trim();
 }
 
-/** Magyar többes-szám levágása a kategória-címkékről (best-effort). */
+/** Strips the Hungarian plural from category labels (best-effort). */
 function stripPlural(label: string): string {
   return label
     .toLowerCase()
@@ -79,7 +79,7 @@ function buildCategoryKeywords(categoryMap?: Record<string, string>): CategoryKe
   return Object.entries(categoryMap)
     .map(([label, key]) => ({ keyword: stripPlural(label), key }))
     .filter((c) => c.keyword.length >= 4)
-    .sort((a, b) => b.keyword.length - a.keyword.length); // specifikusabb előbb
+    .sort((a, b) => b.keyword.length - a.keyword.length); // more specific first
 }
 
 function inferCategory(title: string, keywords: CategoryKeyword[], fallback: string): string {
@@ -114,7 +114,7 @@ export function createWordpressAccordionSource(options: Record<string, unknown>)
             signal: ctx.signal,
           });
           if (!res.ok) {
-            ctx.logger.warn(`wordpress-accordion: REST hiba ${res.status} @ ${url.toString()}`);
+            ctx.logger.warn(`wordpress-accordion: REST error ${res.status} @ ${url.toString()}`);
             break;
           }
           totalPages = Number(res.headers.get('x-wp-totalpages') ?? '1') || 1;
@@ -129,7 +129,7 @@ export function createWordpressAccordionSource(options: Record<string, unknown>)
               category: inferCategory(title, keywords, opts.defaultCategory),
               sourceUrl: item.source_url,
               mimeType: item.mime_type ?? mime,
-              // modified_gmt változik, ha a fájlt cserélik → jó változás-token.
+              // modified_gmt changes when the file is replaced → good change token.
               changeToken: item.modified_gmt ?? null,
               publishedAt: item.date_gmt ? new Date(`${item.date_gmt}Z`) : null,
               language: 'hu',
@@ -146,7 +146,7 @@ export function createWordpressAccordionSource(options: Record<string, unknown>)
         signal: ctx.signal,
       });
       if (!res.ok) {
-        throw new Error(`Letöltés sikertelen (${res.status}): ${doc.sourceUrl}`);
+        throw new Error(`Download failed (${res.status}): ${doc.sourceUrl}`);
       }
       const bytes = new Uint8Array(await res.arrayBuffer());
       return { externalId: doc.externalId, bytes, mimeType: doc.mimeType };

@@ -7,8 +7,8 @@ import { createManualUploadSource } from './sources/manual-upload.js';
 import { createWordpressAccordionSource } from './sources/wordpress-accordion.js';
 
 /**
- * Adapter-regiszter: név → factory (BRIEF 4./9. pont). Nincs plugin-rendszer
- * ezen túl; új adapter ide egy bejegyzéssel kerül be.
+ * Adapter registry: name → factory (BRIEF points 4/9). There is no plugin
+ * system beyond this; a new adapter is added here with a single entry.
  */
 const factories: Record<string, DocumentSourceFactory> = {
   'manual-upload': createManualUploadSource,
@@ -19,12 +19,12 @@ export function registerAdapter(name: string, factory: DocumentSourceFactory): v
   factories[name] = factory;
 }
 
-/** A descriptor alapján példányosít egy DocumentSource-t. */
+/** Instantiates a DocumentSource based on the descriptor. */
 export function createSource(descriptor: SourceDescriptor): DocumentSource {
   const factory = factories[descriptor.adapter];
   if (!factory) {
     const known = Object.keys(factories).join(', ');
-    throw new Error(`Ismeretlen adapter: "${descriptor.adapter}". Regisztráltak: ${known}`);
+    throw new Error(`Unknown adapter: "${descriptor.adapter}". Registered: ${known}`);
   }
   return factory(descriptor.options);
 }

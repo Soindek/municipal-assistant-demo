@@ -1,6 +1,6 @@
 import type { SourceLogger } from '@municipal-assistant/shared';
 
-/** Egyszerű konzol-logger; ezt injektáljuk az adaptereknek és a pipeline-nak. */
+/** Simple console logger; injected into the adapters and the pipeline. */
 export const consoleLogger: SourceLogger = {
   info: (msg, meta) => console.log(`[info]  ${msg}`, meta ?? ''),
   warn: (msg, meta) => console.warn(`[warn]  ${msg}`, meta ?? ''),

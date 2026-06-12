@@ -7,7 +7,7 @@ import { hybridSearch } from '../retrieval/search.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
 
-/** GET /api/health — készenléti ellenőrzés (DB elérhetőség is). */
+/** GET /api/health — readiness check (including DB availability). */
 export function createHealthHandler(deps: ApiDeps): RequestHandler {
   return async (_req, res) => {
     try {
@@ -23,7 +23,7 @@ export function createHealthHandler(deps: ApiDeps): RequestHandler {
   };
 }
 
-/** POST /api/ask — a teljes RAG út, SSE-streamelt válasszal. */
+/** POST /api/ask — the full RAG path, with an SSE-streamed answer. */
 export function createAskHandler(deps: ApiDeps): RequestHandler {
   const { config, llm } = deps;
 
@@ -31,7 +31,7 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
     question: z
       .string()
       .trim()
-      .min(1, 'A kérdés nem lehet üres')
+      .min(1, 'The question cannot be empty')
       .max(config.limits.maxQuestionChars),
     history: z
       .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }))
@@ -42,32 +42,32 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
   return async (req, res) => {
     const parsed = BodySchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: 'Érvénytelen kérés', details: parsed.error.issues });
+      res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
       return;
     }
     const { question, history } = parsed.data;
 
     initSse(res);
     const ac = new AbortController();
-    // Csak akkor szakítsuk meg, ha a kliens bontott a válasz befejezése ELŐTT.
-    // (req 'close' túl korán tüzelne — a body beolvasása után azonnal.)
+    // Only abort if the client disconnected BEFORE the response finished.
+    // (req 'close' would fire too early — right after the body is read.)
     res.on('close', () => {
       if (!res.writableFinished) ac.abort();
     });
 
     try {
-      // 1) Követő kérdés → önálló keresési kérdés.
+      // 1) Follow-up question → standalone search query.
       const searchQuery = await rewriteFollowUp(llm.chat, history, question, ac.signal);
 
-      // 2) Beágyazás + hibrid keresés.
+      // 2) Embedding + hybrid search.
       const embeddings = await llm.embedding.embed([searchQuery], ac.signal);
       const queryEmbedding = embeddings[0];
-      if (!queryEmbedding) throw new Error('Sikertelen beágyazás a kérdéshez.');
+      if (!queryEmbedding) throw new Error('Failed to embed the question.');
 
       const chunks = await hybridSearch(queryEmbedding, searchQuery, config.rag.topK);
       const bestSimilarity = chunks[0]?.similarity ?? 0;
 
-      // 3) Guardrail: nincs elég jó találat → "nem tudom" (BRIEF 8. pont).
+      // 3) Guardrail: no good-enough match → "I don't know" (BRIEF point 8).
       if (chunks.length === 0 || bestSimilarity < config.rag.minScore) {
         sendEvent(res, {
           type: 'token',
@@ -79,7 +79,7 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
         return;
       }
 
-      // 4) Válasz streamelése + a végén a források.
+      // 4) Stream the answer + the sources at the end.
       const messages = buildAnswerMessages(config, question, chunks);
       await llm.chat.streamChat(
         messages,
@@ -98,16 +98,16 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
   };
 }
 
-/** POST /api/reindex — védett, kézi betöltés-indítás (BRIEF 7. pont). */
+/** POST /api/reindex — protected, manual ingestion trigger (BRIEF point 7). */
 export function createReindexHandler(deps: ApiDeps): RequestHandler {
   return async (req, res) => {
     const token = deps.env.REINDEX_TOKEN;
     if (!token) {
-      res.status(503).json({ error: 'A reindex nincs engedélyezve (állíts be REINDEX_TOKEN-t).' });
+      res.status(503).json({ error: 'Reindex is not enabled (set REINDEX_TOKEN).' });
       return;
     }
     if (req.headers.authorization !== `Bearer ${token}`) {
-      res.status(401).json({ error: 'Hiányzó vagy érvénytelen token.' });
+      res.status(401).json({ error: 'Missing or invalid token.' });
       return;
     }
     try {

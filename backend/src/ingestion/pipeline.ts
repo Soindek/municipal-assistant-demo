@@ -23,7 +23,7 @@ export interface PipelineDeps {
   signal?: AbortSignal;
 }
 
-/** Embedding kötegelve, hogy ne lépjük túl a provider kérési korlátait. */
+/** Embed in batches so we don't exceed the provider's request limits. */
 async function embedInBatches(
   client: EmbeddingClient,
   texts: string[],
@@ -38,12 +38,12 @@ async function embedInBatches(
 }
 
 /**
- * Általános betöltő pipeline egy forrásra:
- *   list → (változás-token alapú skip) → fetch → extract(+OCR TODO) →
- *   §-tudatos darabolás → embedding → upsert.
+ * Generic ingestion pipeline for a single source:
+ *   list → (skip based on change token) → fetch → extract(+OCR TODO) →
+ *   §-aware chunking → embedding → upsert.
  *
- * A forrásról semmit nem tud azon túl, amit a DocumentSource interfész ad
- * (BRIEF 3./4. pont).
+ * It knows nothing about the source beyond what the DocumentSource interface
+ * provides (BRIEF points 3/4).
  */
 export async function ingestSource(
   source: DocumentSource,
@@ -58,10 +58,10 @@ export async function ingestSource(
 
   for await (const doc of source.list(ctx)) {
     try {
-      // Változásfigyelés: ha van token és egyezik a tárolttal, kihagyjuk.
+      // Change detection: if there is a token and it matches the stored one, skip.
       const existing = await findByExternalId(source.name, doc.externalId);
       if (existing && doc.changeToken !== null && existing.changeToken === doc.changeToken) {
-        deps.logger.info(`Kihagyva (változatlan): ${doc.title}`);
+        deps.logger.info(`Skipped (unchanged): ${doc.title}`);
         stats.skipped++;
         continue;
       }
@@ -70,15 +70,15 @@ export async function ingestSource(
       const extracted = await extractText(fetched);
 
       if (extracted.likelyScanned) {
-        // OCR-fallback bekötési pontja (lásd extract.ts TODO).
-        deps.logger.warn(`Szkenneltnek tűnik, OCR kellene (TODO) — kihagyva: ${doc.title}`);
+        // Integration point for the OCR fallback (see TODO in extract.ts).
+        deps.logger.warn(`Appears scanned, OCR needed (TODO) — skipped: ${doc.title}`);
         stats.scanned++;
         continue;
       }
 
       const rawChunks = chunkPages(extracted.pages);
       if (rawChunks.length === 0) {
-        deps.logger.warn(`Nincs kinyerhető chunk — kihagyva: ${doc.title}`);
+        deps.logger.warn(`No extractable chunk — skipped: ${doc.title}`);
         stats.skipped++;
         continue;
       }
@@ -110,10 +110,10 @@ export async function ingestSource(
       }));
 
       await replaceChunks(documentId, chunkInputs);
-      deps.logger.info(`Feldolgozva: ${doc.title} (${chunkInputs.length} chunk)`);
+      deps.logger.info(`Processed: ${doc.title} (${chunkInputs.length} chunks)`);
       stats.processed++;
     } catch (err) {
-      deps.logger.error(`Hiba (${doc.title}): ${(err as Error).message}`);
+      deps.logger.error(`Error (${doc.title}): ${(err as Error).message}`);
       stats.failed++;
     }
   }

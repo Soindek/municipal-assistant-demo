@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import { getPool } from '../pool.js';
 
-/** A változásfigyeléshez szükséges minimális dokumentum-állapot. */
+/** The minimal document state required for change detection. */
 export interface ExistingDocument {
   id: string;
   changeToken: string | null;
@@ -19,7 +19,7 @@ export interface UpsertDocumentInput {
   publishedAt: Date | null;
 }
 
-/** Megkeresi egy adapteren belül stabil külső kulcs alapján a dokumentumot. */
+/** Looks up a document by its external key, stable within an adapter. */
 export async function findByExternalId(
   sourceName: string,
   externalId: string,
@@ -34,7 +34,7 @@ export async function findByExternalId(
   return rows[0] ?? null;
 }
 
-/** Beszúrja vagy frissíti a dokumentum metaadatait; visszaadja az id-t. */
+/** Inserts or updates the document metadata; returns the id. */
 export async function upsertDocument(
   input: UpsertDocumentInput,
   pool: Pool = getPool(),

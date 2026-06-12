@@ -1,19 +1,19 @@
 // ───────────────────────── shared/src/dto.ts ─────────────────────────
-// A frontend és a backend közös DTO-jai. Egyetlen forrás az igazságról.
+// Shared DTOs for the frontend and backend. A single source of truth.
 
-/** Egy beszélgetési forduló (követő kérdések kontextusához). */
+/** A single conversation turn (context for follow-up questions). */
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
 }
 
-/** Forrásmegjelölés egy válaszhoz — ebből épít a UI kattintható hivatkozást. */
+/** A source citation for an answer — the UI builds a clickable link from it. */
 export interface Source {
   documentTitle: string;
   category: string;
   sourceUrl: string;
   pageNumber?: number;
-  sectionRef?: string; // pl. "12. §"
+  sectionRef?: string; // e.g. "12. §"
 }
 
 export interface AskRequest {
@@ -21,9 +21,9 @@ export interface AskRequest {
   history?: ChatTurn[];
 }
 
-/** SSE-eseménytípusok a /api/ask streamben. */
+/** SSE event types in the /api/ask stream. */
 export type AskEvent =
-  | { type: 'token'; text: string } // részleges válaszszöveg
-  | { type: 'sources'; sources: Source[] } // a válasz forrásai (a végén)
+  | { type: 'token'; text: string } // partial answer text
+  | { type: 'sources'; sources: Source[] } // the answer's sources (at the end)
   | { type: 'done' }
   | { type: 'error'; message: string };

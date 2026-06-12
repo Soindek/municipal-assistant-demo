@@ -4,7 +4,7 @@ import type { ApiDeps } from './deps.js';
 import { createAskHandler, createHealthHandler, createReindexHandler } from './handlers.js';
 import { corsAndCsp, rateLimit } from './middleware.js';
 
-/** Felépíti az Express alkalmazást a már feloldott függőségekből. */
+/** Builds the Express application from the already-resolved dependencies. */
 export function createApp(deps: ApiDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -12,10 +12,10 @@ export function createApp(deps: ApiDeps): Express {
   app.use(express.json({ limit: '64kb' }));
   app.use(corsAndCsp(deps.config));
 
-  // Health: rate limit nélkül (uptime-check ne ütközzön a limitbe).
+  // Health: no rate limit (so uptime checks don't hit the limit).
   app.get('/api/health', createHealthHandler(deps));
 
-  // Nyilvános, IP-alapú rate limittel védett végpont.
+  // Public endpoint protected by an IP-based rate limit.
   app.post(
     '/api/ask',
     rateLimit(deps.config.limits.requestsPerMinutePerIp),

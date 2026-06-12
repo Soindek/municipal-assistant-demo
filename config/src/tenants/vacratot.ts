@@ -2,8 +2,8 @@ import type { TenantConfig } from '@municipal-assistant/shared';
 import type { DeepPartial } from '../deep-merge.js';
 
 /**
- * VARRAT #2 — Vácrátót (MVP bérlő). Csak az eltéréseket adja meg; a többit a
- * default.ts tölti ki. Titok (API-kulcs) ide SOHA nem kerül — az env-ből jön.
+ * SEAM #2 — Vácrátót (MVP tenant). Only specifies the differences; the rest is
+ * filled in by default.ts. A secret (API key) NEVER goes here — it comes from env.
  */
 export const vacratot: DeepPartial<TenantConfig> = {
   tenantId: 'vacratot',
@@ -33,25 +33,25 @@ export const vacratot: DeepPartial<TenantConfig> = {
   },
 
   sources: [
-    // 1. kör: a teljes pipeline-t a manual-upload adapterrel hozzuk működésre.
-    // Tedd a teszt-PDF-eket a data/uploads/ alá (vagy az itt megadott mappába).
+    // Round 1: get the full pipeline working with the manual-upload adapter.
+    // Put the test PDFs under data/uploads/ (or the directory specified here).
     {
       adapter: 'manual-upload',
       options: {
         dir: './data/uploads',
-        // A mappában lévő fájlok alapértelmezett kategóriája (felülírható
-        // egy <fájlnév>.meta.json-nal — lásd manual-upload adapter).
+        // Default category for files in the directory (can be overridden
+        // with a <filename>.meta.json — see manual-upload adapter).
         defaultCategory: 'rendeletek',
       },
     },
-    // A vacratot.hu/dokumentumok forrás a WordPress REST media végponton át
-    // (a Document Library Pro tábla JS-rendered; lásd wordpress-accordion adapter).
+    // The vacratot.hu/dokumentumok source via the WordPress REST media endpoint
+    // (the Document Library Pro table is JS-rendered; see wordpress-accordion adapter).
     {
       adapter: 'wordpress-accordion',
       options: {
         baseUrl: 'https://vacratot.hu/dokumentumok/',
-        // A kategóriát a dokumentum címéből próbáljuk kitalálni e kulcsszavakkal;
-        // egyébként defaultCategory (a REST media nem adja a DLP-kategóriát).
+        // We try to infer the category from the document title using these keywords;
+        // otherwise defaultCategory (the REST media does not provide the DLP category).
         categoryMap: {
           Rendeletek: 'rendeletek',
           Jegyzőkönyvek: 'jegyzokonyvek',
@@ -65,13 +65,13 @@ export const vacratot: DeepPartial<TenantConfig> = {
         defaultCategory: 'rendeletek',
       },
     },
-    // Később: { adapter: 'google-drive', options: { folderId: '...' } }  // Üvegzseb
+    // Later: { adapter: 'google-drive', options: { folderId: '...' } }  // Glass pocket (transparency)
   ],
 
   rag: {
     topK: 6,
     minScore: 0.2,
-    // Modellek (BRIEF 2. pont + session-döntés): olcsó, magyarul jó modellek.
+    // Models (BRIEF point 2 + session decision): cheap models that perform well in Hungarian.
     embeddingModel: 'text-embedding-3-small',
     chatModel: 'gpt-4.1-mini',
   },

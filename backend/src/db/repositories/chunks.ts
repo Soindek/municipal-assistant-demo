@@ -7,16 +7,16 @@ export interface ChunkInput {
   sectionRef: string | null;
   pageNumber: number | null;
   tokenCount: number | null;
-  /** A beágyazó modell kimenete (text-embedding-3-small → 1536 dim). */
+  /** Output of the embedding model (text-embedding-3-small → 1536 dim). */
   embedding: number[];
 }
 
-/** pgvector literál: [a,b,c]. A ::vector cast a lekérdezésben történik. */
+/** pgvector literal: [a,b,c]. The ::vector cast happens in the query. */
 function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.join(',')}]`;
 }
 
-/** Egy dokumentumhoz tartozó összes chunk törlése (újrafeldolgozás előtt). */
+/** Deletes all chunks belonging to a document (before reprocessing). */
 export async function deleteChunksForDocument(
   documentId: string,
   executor: Pool | PoolClient = getPool(),
@@ -24,7 +24,7 @@ export async function deleteChunksForDocument(
   await executor.query('DELETE FROM chunks WHERE document_id = $1', [documentId]);
 }
 
-/** Chunkok beszúrása. A teljes csere (delete + insert) tranzakcióban fut. */
+/** Inserts chunks. The full replacement (delete + insert) runs in a transaction. */
 export async function replaceChunks(
   documentId: string,
   chunks: ChunkInput[],

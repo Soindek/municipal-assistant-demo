@@ -4,8 +4,8 @@ import type { TenantConfig } from '@municipal-assistant/shared';
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 /**
- * CORS + CSP frame-ancestors a TenantConfig.embed.allowedOrigins alapján
- * (BRIEF 8. pont). Lokális fejlesztéshez a localhost is engedélyezett.
+ * CORS + CSP frame-ancestors based on TenantConfig.embed.allowedOrigins
+ * (BRIEF point 8). localhost is also allowed for local development.
  */
 export function corsAndCsp(config: TenantConfig): RequestHandler {
   const allowed = new Set(config.embed.allowedOrigins);
@@ -21,7 +21,7 @@ export function corsAndCsp(config: TenantConfig): RequestHandler {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     }
-    // Csak az engedélyezett originek ágyazhatják be iframe-be.
+    // Only allowed origins may embed it in an iframe.
     res.setHeader('Content-Security-Policy', `frame-ancestors ${frameAncestors}`);
 
     if (req.method === 'OPTIONS') {
@@ -33,8 +33,8 @@ export function corsAndCsp(config: TenantConfig): RequestHandler {
 }
 
 /**
- * Egyszerű, IP-alapú fixed-window rate limit (BRIEF 8. pont).
- * Megjegyzés: per-process, memóriában — több instance esetén közös store kell.
+ * Simple, IP-based fixed-window rate limit (BRIEF point 8).
+ * Note: per-process, in-memory — a shared store is needed for multiple instances.
  */
 export function rateLimit(requestsPerMinute: number): RequestHandler {
   const windowMs = 60_000;
@@ -51,7 +51,7 @@ export function rateLimit(requestsPerMinute: number): RequestHandler {
       return;
     }
     if (entry.count >= requestsPerMinute) {
-      res.status(429).json({ error: 'Túl sok kérés. Kérjük, próbálja kicsit később.' });
+      res.status(429).json({ error: 'Too many requests. Please try again a little later.' });
       return;
     }
     entry.count++;

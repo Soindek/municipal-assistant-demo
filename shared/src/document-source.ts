@@ -1,97 +1,97 @@
 // ──────────────────── shared/src/document-source.ts ──────────────────
-// VARRAT #1 típusai. A pipeline minden további lépése ezekre épül, és nem
-// tudja, honnan jött az adat.
+// SEAM #1 types. Every subsequent pipeline step builds on these and does not
+// know where the data came from.
 
-/** Egy nyers forrásdokumentum leírója, még feldolgozás előtt. */
+/** Descriptor of a raw source document, before processing. */
 export interface SourceDocument {
   /**
-   * Stabil, a forráson belül egyedi kulcs (pl. fájl-URL vagy Drive fileId).
-   * Erre köt a deduplikáció és a változásfigyelés (documents.external_id).
+   * Stable key, unique within the source (e.g. file URL or Drive fileId).
+   * Deduplication and change tracking key off this (documents.external_id).
    */
   externalId: string;
 
   title: string;
 
-  /** A TenantConfig.categories egyik kulcsa (pl. "rendeletek"). */
+  /** One of the TenantConfig.categories keys (e.g. "rendeletek"). */
   category: string;
 
-  /** Ahonnan a felhasználó elérheti az eredetit (forrásmegjelöléshez). */
+  /** Where the user can access the original (for source citation). */
   sourceUrl: string;
 
-  /** pl. "application/pdf" */
+  /** e.g. "application/pdf" */
   mimeType: string;
 
   /**
-   * Változásfigyelő token: amivel olcsón eldönthető, kell-e újra feldolgozni.
-   * Bármi lehet (ETag, Last-Modified, méret, tartalom-hash). Ha null, mindig
-   * újrafeldolgozandó (pl. ha a forrás nem ad megbízható jelet).
+   * Change-tracking token: lets us cheaply decide whether reprocessing is
+   * needed. Can be anything (ETag, Last-Modified, size, content hash). If null,
+   * always reprocess (e.g. when the source provides no reliable signal).
    */
   changeToken: string | null;
 
-  /** Ha kinyerhető a forrásból. */
+  /** If extractable from the source. */
   publishedAt?: Date | null;
 
-  /** Alapértelmezés a tenant locale-ja. */
+  /** Defaults to the tenant locale. */
   language?: string;
 
-  /** Adapter-specifikus extra (a magnak nem kell értenie). */
+  /** Adapter-specific extra (the core need not understand it). */
   metadata?: Record<string, unknown>;
 }
 
-/** Egy dokumentum letöltött bináris tartalma. */
+/** A document's downloaded binary content. */
 export interface FetchedContent {
   externalId: string;
   bytes: Uint8Array;
   mimeType: string;
 }
 
-/** Minimális, injektált logger (a konkrét implementációt a backend adja). */
+/** Minimal injected logger (the concrete implementation is provided by the backend). */
 export interface SourceLogger {
   info(msg: string, meta?: unknown): void;
   warn(msg: string, meta?: unknown): void;
   error(msg: string, meta?: unknown): void;
 }
 
-/** Futásidejű kontextus az adapternek. */
+/** Runtime context for the adapter. */
 export interface DocumentSourceContext {
   tenantId: string;
   logger: SourceLogger;
-  /** Megszakításhoz (időtúllépés, leállítás). */
+  /** For cancellation (timeout, shutdown). */
   signal?: AbortSignal;
 }
 
 /**
- * VARRAT #1 — az egyetlen mélyen településspecifikus rész a betöltésben.
+ * SEAM #1 — the only deeply municipality-specific part of ingestion.
  *
- * Egy adapter két dologért felel:
- *  - list(): felfedezés (listázás + metaadat + változás-token),
- *  - fetch(): egy konkrét dokumentum bináris letöltése.
+ * An adapter is responsible for two things:
+ *  - list(): discovery (listing + metadata + change token),
+ *  - fetch(): downloading the binary of a specific document.
  *
- * A pipeline minden további lépése (PDF/OCR, darabolás, embedding, upsert)
- * ÁLTALÁNOS, és nem tudja, honnan jött az adat.
+ * Every subsequent pipeline step (PDF/OCR, chunking, embedding, upsert) is
+ * GENERIC and does not know where the data came from.
  */
 export interface DocumentSource {
-  /** Emberi név, logoláshoz/diagnosztikához (pl. "wordpress-accordion"). */
+  /** Human-readable name, for logging/diagnostics (e.g. "wordpress-accordion"). */
   readonly name: string;
 
   /**
-   * Felsorolja az elérhető dokumentumokat.
-   * AsyncIterable, hogy lapozható/streamelhető legyen, és ne kelljen mindent
-   * egyszerre memóriában tartani.
+   * Lists the available documents.
+   * AsyncIterable so it can be paginated/streamed and we don't have to hold
+   * everything in memory at once.
    */
   list(ctx: DocumentSourceContext): AsyncIterable<SourceDocument>;
 
   /**
-   * Letölti egy konkrét dokumentum tartalmát.
-   * Külön lépés, mert egyes források (pl. Google Drive, hitelesített API-k)
-   * saját letöltőt igényelnek — nem elég egy sima HTTP GET a sourceUrl-re.
+   * Downloads the content of a specific document.
+   * A separate step because some sources (e.g. Google Drive, authenticated APIs)
+   * require their own downloader — a plain HTTP GET on sourceUrl is not enough.
    */
   fetch(doc: SourceDocument, ctx: DocumentSourceContext): Promise<FetchedContent>;
 }
 
 /**
- * Adapter-gyár: a registry a TenantConfig.sources[].adapter névhez ezt rendeli,
- * és az options-szal példányosítja. Az options típusát az egyes adapterek
- * szűkítik/validálják (pl. zod-dal).
+ * Adapter factory: the registry maps the TenantConfig.sources[].adapter name to
+ * this and instantiates it with the options. Each adapter narrows/validates the
+ * options type (e.g. with zod).
  */
 export type DocumentSourceFactory = (options: Record<string, unknown>) => DocumentSource;

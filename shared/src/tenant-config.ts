@@ -1,55 +1,55 @@
 // ─────────────────────── shared/src/tenant-config.ts ──────────────────────
-// VARRAT #2 típusai. Titkok (API-kulcsok) NEM ide jönnek, hanem env-ből.
+// SEAM #2 types. Secrets (API keys) do NOT belong here — they come from env.
 
-/** Egy forrás-leíró a configban: melyik adapter, milyen paraméterrel. */
+/** A source descriptor in the config: which adapter, with which parameters. */
 export interface SourceDescriptor {
-  /** A registry-ben regisztrált adapter neve (pl. "wordpress-accordion"). */
+  /** The name of the adapter registered in the registry (e.g. "wordpress-accordion"). */
   adapter: string;
-  /** Adapter-specifikus paraméterek (pl. { baseUrl, categoryMap }). */
+  /** Adapter-specific parameters (e.g. { baseUrl, categoryMap }). */
   options: Record<string, unknown>;
 }
 
 /**
- * VARRAT #2 — minden településspecifikus beállítás egy helyen.
- * Titkok (API-kulcsok) NEM ide jönnek, hanem env-ből.
+ * SEAM #2 — all municipality-specific settings in one place.
+ * Secrets (API keys) do NOT belong here — they come from env.
  */
 export interface TenantConfig {
-  /** Gépi azonosító, pl. "vacratot". */
+  /** Machine identifier, e.g. "vacratot". */
   tenantId: string;
-  /** Megjelenítendő név, pl. "Vácrátót Község Önkormányzata". */
+  /** Display name, e.g. "Vácrátót Község Önkormányzata". */
   displayName: string;
-  /** BCP-47 locale, pl. "hu-HU". */
+  /** BCP-47 locale, e.g. "hu-HU". */
   locale: string;
 
   branding: {
     logoUrl?: string;
     primaryColor?: string;
-    /** Üdvözlő üzenet a chat tetején. */
+    /** Welcome message at the top of the chat. */
     welcomeMessage: string;
-    /** Jogi figyelmeztetés (mindig látszik / minden válasznál). */
+    /** Legal disclaimer (always visible / on every answer). */
     disclaimer: string;
   };
 
   embed: {
-    /** CORS + CSP frame-ancestors, pl. ["https://vacratotikozosseg.hu"]. */
+    /** CORS + CSP frame-ancestors, e.g. ["https://vacratotikozosseg.hu"]. */
     allowedOrigins: string[];
   };
 
-  /** Taxonómia: kulcs → emberi címke. A SourceDocument.category ezekre hivatkozik. */
+  /** Taxonomy: key → human label. SourceDocument.category references these. */
   categories: Record<string, string>;
 
-  /** Milyen forrásokból töltünk. */
+  /** Which sources we ingest from. */
   sources: SourceDescriptor[];
 
   rag: {
     topK: number;
-    /** Küszöb: ez alatt "nem tudom" válasz (hallucináció ellen). */
+    /** Threshold: below this, answer "I don't know" (guards against hallucination). */
     minScore: number;
     embeddingModel: string;
     chatModel: string;
     /**
-     * Rendszerprompt-sablon. Behelyettesítendő tokenek pl. {displayName}.
-     * Tartalmazza a kontextuson-kívüli-válasz tiltását és az idézési szabályt.
+     * System prompt template. Tokens to substitute, e.g. {displayName}.
+     * Includes the out-of-context answer ban and the citation rule.
      */
     systemPromptTemplate: string;
   };
