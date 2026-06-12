@@ -1,0 +1,22 @@
+# Lokális fejlesztői Postgres + pgvector.
+# Indítás:  npm run db:up   (leállítás: npm run db:down)
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: municipal-assistant-db
+    environment:
+      POSTGRES_USER: municipal
+      POSTGRES_PASSWORD: municipal
+      POSTGRES_DB: municipal_assistant
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U municipal -d municipal_assistant']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pgdata:
