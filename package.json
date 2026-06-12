@@ -1,0 +1,38 @@
+{
+  "name": "municipal-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Önkormányzati Ügysegéd — beágyazható RAG chat önkormányzati dokumentumokhoz (MVP tenant: Vácrátót).",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "config",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=20.19",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "migrate": "npm run migrate -w @municipal-assistant/backend",
+    "seed": "npm run seed -w @municipal-assistant/backend",
+    "reindex": "npm run reindex -w @municipal-assistant/backend",
+    "dev": "npm run dev -w @municipal-assistant/backend"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "^20.19.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.10.0"
+  }
+}

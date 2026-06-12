@@ -1,0 +1,28 @@
+{
+  "name": "@municipal-assistant/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/db/migrate.ts",
+    "seed": "tsx src/ingestion/run.ts --source=manual-upload",
+    "reindex": "tsx src/ingestion/run.ts"
+  },
+  "dependencies": {
+    "@municipal-assistant/config": "*",
+    "@municipal-assistant/shared": "*",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "openai": "^4.68.4",
+    "pdfjs-dist": "^4.7.76",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/pg": "^8.11.10"
+  }
+}
