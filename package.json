@@ -7,7 +7,8 @@
   "workspaces": [
     "shared",
     "config",
-    "backend"
+    "backend",
+    "frontend"
   ],
   "engines": {
     "node": ">=20.19",
@@ -24,7 +25,8 @@
     "migrate": "npm run migrate -w @municipal-assistant/backend",
     "seed": "npm run seed -w @municipal-assistant/backend",
     "reindex": "npm run reindex -w @municipal-assistant/backend",
-    "dev": "npm run dev -w @municipal-assistant/backend"
+    "dev": "npm run dev -w @municipal-assistant/backend",
+    "dev:frontend": "npm run start -w frontend"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

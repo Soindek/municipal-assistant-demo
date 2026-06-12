@@ -52,7 +52,7 @@ export function buildAnswerMessages(
       content:
         `Forrásrészletek:\n\n${context}\n\n` +
         `Kérdés: ${question}\n\n` +
-        `Válaszolj kizárólag a fenti forrásrészletek alapján, és hivatkozz rájuk [Forrás N] formában.`,
+        `Válaszolj kizárólag a fenti forrásrészletek alapján. NE írj a szövegbe forráshivatkozást (pl. [Forrás 1]) — a forrásokat a felület külön jeleníti meg.`,
     },
   ];
 }
