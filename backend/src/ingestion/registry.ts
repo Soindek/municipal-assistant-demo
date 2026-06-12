@@ -4,6 +4,7 @@ import type {
   SourceDescriptor,
 } from '@municipal-assistant/shared';
 import { createManualUploadSource } from './sources/manual-upload.js';
+import { createWordpressAccordionSource } from './sources/wordpress-accordion.js';
 
 /**
  * Adapter-regiszter: név → factory (BRIEF 4./9. pont). Nincs plugin-rendszer
@@ -11,7 +12,7 @@ import { createManualUploadSource } from './sources/manual-upload.js';
  */
 const factories: Record<string, DocumentSourceFactory> = {
   'manual-upload': createManualUploadSource,
-  // 2. kör: 'wordpress-accordion': createWordpressAccordionSource,
+  'wordpress-accordion': createWordpressAccordionSource,
 };
 
 export function registerAdapter(name: string, factory: DocumentSourceFactory): void {

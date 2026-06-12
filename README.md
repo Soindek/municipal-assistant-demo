@@ -77,6 +77,23 @@ curl -N -X POST http://localhost:3001/api/ask \
 A válasz **SSE** stream: `token` események a szövegre, a végén egy `sources`
 esemény a forrásokkal, majd `done`.
 
+## Források (adapterek, varrat #1)
+
+- **`manual-upload`** — helyi mappából (`data/uploads/`) olvas PDF/TXT fájlokat.
+  Fájlonként opcionális `<fájlnév>.meta.json` (`title`, `category`, `sourceUrl`,
+  `publishedAt`) felülírhatja a metaadatot. A leggyorsabb úton tesztelhető vele a
+  teljes pipeline. Indítás: `npm run seed`.
+- **`wordpress-accordion`** — a `vacratot.hu/dokumentumok` (Document Library Pro)
+  PDF-jeit a WordPress REST `wp/v2/media` végpontról listázza, lapozással
+  (a tábla JS-rendered, ezért nem statikus scrape). **Korlát:** a REST nem adja a
+  plugin kategória-taxonómiáját, így a kategóriát a címből próbáljuk kitalálni,
+  különben a `defaultCategory`. Az `npm run reindex` ezt a forrást is feldolgozza
+  (a teljes médiatárat — sok PDF, lehet közte szkennelt is, amihez OCR kell).
+
+> **Figyelem:** a `reindex` a teljes `vacratot.hu` médiatárat (több száz PDF)
+> letölti és embeddeli — ez időigényes és OpenAI-költséggel jár. Fejlesztéshez a
+> `seed` (manual-upload) a gyors, olcsó út.
+
 ## Hasznos parancsok
 
 | Parancs                             | Mit csinál                             |

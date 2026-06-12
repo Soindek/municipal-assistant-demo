@@ -44,23 +44,27 @@ export const vacratot: DeepPartial<TenantConfig> = {
         defaultCategory: 'rendeletek',
       },
     },
-    // 2. kör: a vacratot.hu/dokumentumok WordPress-accordion forrás.
-    // {
-    //   adapter: 'wordpress-accordion',
-    //   options: {
-    //     baseUrl: 'https://vacratot.hu/dokumentumok/',
-    //     categoryMap: {
-    //       'Rendeletek': 'rendeletek',
-    //       'Jegyzőkönyvek': 'jegyzokonyvek',
-    //       'Polgármesteri határozatok': 'polgarmesteri_hatarozatok',
-    //       'HVB határozatok': 'hvb_hatarozatok',
-    //       'Nyomtatványok': 'nyomtatvanyok',
-    //       'Szerződések': 'szerzodesek',
-    //       'Településrendezési és szabályozási tervek': 'telepulesrendezes',
-    //       'Vácrátóti Hírmondó': 'hirmondo',
-    //     },
-    //   },
-    // },
+    // A vacratot.hu/dokumentumok forrás a WordPress REST media végponton át
+    // (a Document Library Pro tábla JS-rendered; lásd wordpress-accordion adapter).
+    {
+      adapter: 'wordpress-accordion',
+      options: {
+        baseUrl: 'https://vacratot.hu/dokumentumok/',
+        // A kategóriát a dokumentum címéből próbáljuk kitalálni e kulcsszavakkal;
+        // egyébként defaultCategory (a REST media nem adja a DLP-kategóriát).
+        categoryMap: {
+          Rendeletek: 'rendeletek',
+          Jegyzőkönyvek: 'jegyzokonyvek',
+          'Polgármesteri határozatok': 'polgarmesteri_hatarozatok',
+          'HVB határozatok': 'hvb_hatarozatok',
+          Nyomtatványok: 'nyomtatvanyok',
+          Szerződések: 'szerzodesek',
+          'Településrendezési és szabályozási tervek': 'telepulesrendezes',
+          'Vácrátóti Hírmondó': 'hirmondo',
+        },
+        defaultCategory: 'rendeletek',
+      },
+    },
     // Később: { adapter: 'google-drive', options: { folderId: '...' } }  // Üvegzseb
   ],
 
