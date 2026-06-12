@@ -79,15 +79,15 @@ esemény a forrásokkal, majd `done`.
 
 ## Hasznos parancsok
 
-| Parancs | Mit csinál |
-| --- | --- |
-| `npm run db:up` / `npm run db:down` | Lokális Postgres indítása/leállítása |
-| `npm run migrate` | DB séma létrehozása/frissítése |
-| `npm run seed` | Betöltés a `manual-upload` adapterrel |
-| `npm run reindex` | Az összes konfigurált forrás betöltése |
-| `npm run dev` | Backend dev szerver |
-| `npm run lint` / `npm run format` | Lint / formázás |
-| `npm run typecheck` | Típusellenőrzés minden csomagra |
+| Parancs                             | Mit csinál                             |
+| ----------------------------------- | -------------------------------------- |
+| `npm run db:up` / `npm run db:down` | Lokális Postgres indítása/leállítása   |
+| `npm run migrate`                   | DB séma létrehozása/frissítése         |
+| `npm run seed`                      | Betöltés a `manual-upload` adapterrel  |
+| `npm run reindex`                   | Az összes konfigurált forrás betöltése |
+| `npm run dev`                       | Backend dev szerver                    |
+| `npm run lint` / `npm run format`   | Lint / formázás                        |
+| `npm run typecheck`                 | Típusellenőrzés minden csomagra        |
 
 ## Állapot (1. kör)
 

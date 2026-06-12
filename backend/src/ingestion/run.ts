@@ -23,7 +23,9 @@ export async function run(): Promise<IngestStats> {
 
   const totals: IngestStats = { processed: 0, skipped: 0, scanned: 0, failed: 0 };
   if (descriptors.length === 0) {
-    consoleLogger.warn(`Nincs feldolgozandó forrás (tenant=${config.tenantId}, filter=${filter ?? 'nincs'}).`);
+    consoleLogger.warn(
+      `Nincs feldolgozandó forrás (tenant=${config.tenantId}, filter=${filter ?? 'nincs'}).`,
+    );
     return totals;
   }
 
