@@ -8,6 +8,9 @@ export interface ExistingDocument {
   status: string;
 }
 
+/** Document lifecycle status. */
+export type DocumentStatus = 'active' | 'needs_ocr' | 'superseded' | 'removed';
+
 export interface UpsertDocumentInput {
   sourceName: string;
   externalId: string;
@@ -17,6 +20,8 @@ export interface UpsertDocumentInput {
   mimeType: string | null;
   changeToken: string | null;
   publishedAt: Date | null;
+  /** Defaults to 'active'. Use 'needs_ocr' for scanned docs with no text yet. */
+  status?: DocumentStatus;
 }
 
 /** Looks up a document by its external key, stable within an adapter. */
@@ -42,7 +47,7 @@ export async function upsertDocument(
   const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO documents
        (source_name, external_id, title, category, source_url, mime_type, change_token, published_at, status, fetched_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', now())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
      ON CONFLICT (source_name, external_id) DO UPDATE SET
        title        = EXCLUDED.title,
        category     = EXCLUDED.category,
@@ -50,7 +55,7 @@ export async function upsertDocument(
        mime_type    = EXCLUDED.mime_type,
        change_token = EXCLUDED.change_token,
        published_at = EXCLUDED.published_at,
-       status       = 'active',
+       status       = EXCLUDED.status,
        fetched_at   = now()
      RETURNING id::text`,
     [
@@ -62,6 +67,7 @@ export async function upsertDocument(
       input.mimeType,
       input.changeToken,
       input.publishedAt,
+      input.status ?? 'active',
     ],
   );
   return rows[0]!.id;

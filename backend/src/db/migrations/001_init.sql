@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS documents (
   mime_type     TEXT,
   change_token  TEXT,                     -- ETag/Last-Modified/hash; if NULL → always re-fetch
   published_at  TIMESTAMPTZ,
-  status        TEXT NOT NULL DEFAULT 'active',  -- active | superseded | removed
+  status        TEXT NOT NULL DEFAULT 'active',  -- active | needs_ocr | superseded | removed
   fetched_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (source_name, external_id)
 );
