@@ -1,11 +1,24 @@
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { getPool } from '../db/pool.js';
+import { insertQueryLog, type QueryLogInput } from '../db/repositories/query-log.js';
 import { run } from '../ingestion/run.js';
+import { consoleLogger } from '../logger.js';
 import { buildAnswerMessages, buildSources, rewriteFollowUp } from '../retrieval/prompt.js';
 import { hybridSearch } from '../retrieval/search.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
+
+/** Fallback answer when retrieval finds nothing good enough (BRIEF point 8). */
+const NO_ANSWER =
+  'Sajnálom, ezt nem találom a rendelkezésre álló hivatalos dokumentumokban. Javaslom, forduljon közvetlenül a hivatalhoz.';
+
+/** Fire-and-forget query logging; never breaks the response on failure. */
+function logQuery(entry: QueryLogInput): void {
+  void insertQueryLog(entry).catch((err) =>
+    consoleLogger.warn(`query_log insert failed: ${(err as Error).message}`),
+  );
+}
 
 /**
  * GET /api/config — tenant branding + limits for the UI. Exposes only public,
@@ -92,19 +105,22 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
 
       // 3) Guardrail: no good-enough match → "I don't know" (BRIEF point 8).
       if (chunks.length === 0 || bestSimilarity < config.rag.minScore) {
-        sendEvent(res, {
-          type: 'token',
-          text: 'Sajnálom, ezt nem találom a rendelkezésre álló hivatalos dokumentumokban. Javaslom, forduljon közvetlenül a hivatalhoz.',
-        });
+        sendEvent(res, { type: 'token', text: NO_ANSWER });
         sendEvent(res, { type: 'sources', sources: [] });
         sendEvent(res, { type: 'done' });
         res.end();
+        logQuery({
+          question,
+          rewrittenQuery: searchQuery,
+          answer: NO_ANSWER,
+          retrievedChunkIds: [],
+        });
         return;
       }
 
       // 4) Stream the answer + the sources at the end.
       const messages = buildAnswerMessages(config, question, chunks);
-      await llm.chat.streamChat(
+      const answer = await llm.chat.streamChat(
         messages,
         (text) => sendEvent(res, { type: 'token', text }),
         ac.signal,
@@ -112,6 +128,12 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
       sendEvent(res, { type: 'sources', sources: buildSources(chunks) });
       sendEvent(res, { type: 'done' });
       res.end();
+      logQuery({
+        question,
+        rewrittenQuery: searchQuery,
+        answer,
+        retrievedChunkIds: chunks.map((c) => c.chunkId),
+      });
     } catch (err) {
       if (!ac.signal.aborted) {
         sendEvent(res, { type: 'error', message: (err as Error).message });

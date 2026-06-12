@@ -36,7 +36,15 @@ const OptionsSchema = z.object({
   mimeTypes: z.array(z.string()).default(['application/pdf']),
   perPage: z.number().int().positive().max(100).default(100),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
+  /** Per-request timeout (ms) so one slow file can't stall the whole run. */
+  requestTimeoutMs: z.number().int().positive().default(30000),
 });
+
+/** Combines the caller's abort signal with a per-request timeout. */
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
 
 interface MediaItem {
   id: number;
@@ -111,7 +119,7 @@ export function createWordpressAccordionSource(options: Record<string, unknown>)
 
           const res = await fetch(url, {
             headers: { 'User-Agent': opts.userAgent },
-            signal: ctx.signal,
+            signal: withTimeout(ctx.signal, opts.requestTimeoutMs),
           });
           if (!res.ok) {
             ctx.logger.warn(`wordpress-accordion: REST error ${res.status} @ ${url.toString()}`);
@@ -143,7 +151,7 @@ export function createWordpressAccordionSource(options: Record<string, unknown>)
     async fetch(doc: SourceDocument, ctx: DocumentSourceContext): Promise<FetchedContent> {
       const res = await fetch(doc.sourceUrl, {
         headers: { 'User-Agent': opts.userAgent },
-        signal: ctx.signal,
+        signal: withTimeout(ctx.signal, opts.requestTimeoutMs),
       });
       if (!res.ok) {
         throw new Error(`Download failed (${res.status}): ${doc.sourceUrl}`);

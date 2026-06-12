@@ -5,7 +5,11 @@ import type {
 } from '@municipal-assistant/shared';
 import type { EmbeddingClient } from '../llm/types.js';
 import { findByExternalId, upsertDocument } from '../db/repositories/documents.js';
-import { replaceChunks, type ChunkInput } from '../db/repositories/chunks.js';
+import {
+  deleteChunksForDocument,
+  replaceChunks,
+  type ChunkInput,
+} from '../db/repositories/chunks.js';
 import { chunkPages } from './chunk.js';
 import { extractText } from './extract.js';
 
@@ -69,9 +73,25 @@ export async function ingestSource(
       const fetched = await source.fetch(doc, ctx);
       const extracted = await extractText(fetched);
 
+      // Common document metadata for upsert (status set per-branch below).
+      const docFields = {
+        sourceName: source.name,
+        externalId: doc.externalId,
+        title: doc.title,
+        category: doc.category,
+        sourceUrl: doc.sourceUrl,
+        mimeType: doc.mimeType,
+        changeToken: doc.changeToken,
+        publishedAt: doc.publishedAt ?? null,
+      };
+
       if (extracted.likelyScanned) {
-        // Integration point for the OCR fallback (see TODO in extract.ts).
-        deps.logger.warn(`Appears scanned, OCR needed (TODO) — skipped: ${doc.title}`);
+        // Mark scanned docs as needs_ocr (no chunks) so the corpus stays clean
+        // but they remain tracked and re-indexable once OCR lands (see extract.ts
+        // TODO). They never reach search: no chunks + retrieval filters status.
+        const documentId = await upsertDocument({ ...docFields, status: 'needs_ocr' });
+        await deleteChunksForDocument(documentId);
+        deps.logger.warn(`Scanned, no extractable text — marked needs_ocr: ${doc.title}`);
         stats.scanned++;
         continue;
       }
@@ -89,16 +109,7 @@ export async function ingestSource(
         deps.signal,
       );
 
-      const documentId = await upsertDocument({
-        sourceName: source.name,
-        externalId: doc.externalId,
-        title: doc.title,
-        category: doc.category,
-        sourceUrl: doc.sourceUrl,
-        mimeType: doc.mimeType,
-        changeToken: doc.changeToken,
-        publishedAt: doc.publishedAt ?? null,
-      });
+      const documentId = await upsertDocument(docFields);
 
       const chunkInputs: ChunkInput[] = rawChunks.map((c, i) => ({
         chunkIndex: c.chunkIndex,

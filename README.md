@@ -94,6 +94,12 @@ esemény a forrásokkal, majd `done`.
 > letölti és embeddeli — ez időigényes és OpenAI-költséggel jár. Fejlesztéshez a
 > `seed` (manual-upload) a gyors, olcsó út.
 
+**Szkennelt PDF-ek:** ahol nincs kinyerhető szöveg (valószínűleg szkennelt),
+a pipeline NEM ingeszt szemét szöveget — a dokumentum `status='needs_ocr'`
+jelöléssel, chunk nélkül kerül a `documents` táblába (így kereshetetlen marad,
+de nyomon követhető és OCR-körben re-indexelhető). Listázás:
+`SELECT external_id, title FROM documents WHERE status = 'needs_ocr';`
+
 ## Frontend (Angular 21 chat UI)
 
 Minimális, beágyazható chat-felület (BRIEF 7. pont): üdvözlő üzenet, streamelt

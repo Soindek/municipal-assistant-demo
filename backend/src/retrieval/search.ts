@@ -12,8 +12,10 @@ export interface RetrievedChunk {
   publishedAt: Date | null;
   /** Cosine similarity (0..1) — this is what the minScore threshold checks. */
   similarity: number;
-  /** Reciprocal Rank Fusion score — the ordering follows this. */
+  /** Reciprocal Rank Fusion score (relevance only). */
   rrf: number;
+  /** RRF after the recency boost — the ordering follows this. */
+  score: number;
 }
 
 function toVectorLiteral(embedding: number[]): string {
@@ -22,6 +24,13 @@ function toVectorLiteral(embedding: number[]): string {
 
 // RRF constant (the value commonly used in the literature).
 const RRF_K = 60;
+
+// Recency boost (BRIEF point 8: prefer fresher documents). Relevance stays
+// primary; a fresher doc gets a gentle multiplicative lift, capped by the weight.
+// A document at the half-life age keeps half of its recency factor; missing
+// published_at gets no boost (treated as oldest).
+const RECENCY_WEIGHT = 0.4;
+const RECENCY_HALFLIFE_DAYS = 365;
 
 /**
  * Hybrid search: semantic (pgvector HNSW cosine) + Hungarian full-text
@@ -50,6 +59,7 @@ export async function hybridSearch(
     published_at: Date | null;
     similarity: number;
     rrf: number;
+    score: number;
   }>(
     `
     WITH semantic AS (
@@ -84,15 +94,19 @@ export async function hybridSearch(
       d.source_url                                 AS source_url,
       d.published_at                               AS published_at,
       (1 - (c.embedding <=> $1::vector))           AS similarity,
-      f.rrf                                        AS rrf
+      f.rrf                                        AS rrf,
+      f.rrf * (1 + $6 * CASE
+        WHEN d.published_at IS NULL THEN 0
+        ELSE EXP(-LN(2) * GREATEST(0, EXTRACT(EPOCH FROM (now() - d.published_at)) / 86400.0) / $7)
+      END)                                         AS score
     FROM fused f
     JOIN chunks c ON c.id = f.id
     JOIN documents d ON d.id = c.document_id
     WHERE d.status = 'active'
-    ORDER BY f.rrf DESC
+    ORDER BY score DESC
     LIMIT $5
     `,
-    [vec, queryText, perList, RRF_K, topK],
+    [vec, queryText, perList, RRF_K, topK, RECENCY_WEIGHT, RECENCY_HALFLIFE_DAYS],
   );
 
   return rows.map((r) => ({
@@ -106,5 +120,6 @@ export async function hybridSearch(
     publishedAt: r.published_at,
     similarity: Number(r.similarity),
     rrf: Number(r.rrf),
+    score: Number(r.score),
   }));
 }
