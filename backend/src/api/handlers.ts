@@ -7,6 +7,29 @@ import { hybridSearch } from '../retrieval/search.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
 
+/**
+ * GET /api/config — tenant branding + limits for the UI. Exposes only public,
+ * non-secret fields so the frontend hardcodes nothing (seam #2 stays clean).
+ */
+export function createConfigHandler(deps: ApiDeps): RequestHandler {
+  const { config } = deps;
+  return (_req, res) => {
+    res.json({
+      displayName: config.displayName,
+      locale: config.locale,
+      branding: {
+        welcomeMessage: config.branding.welcomeMessage,
+        disclaimer: config.branding.disclaimer,
+        primaryColor: config.branding.primaryColor ?? null,
+        logoUrl: config.branding.logoUrl ?? null,
+      },
+      limits: {
+        maxQuestionChars: config.limits.maxQuestionChars,
+      },
+    });
+  };
+}
+
 /** GET /api/health — readiness check (including DB availability). */
 export function createHealthHandler(deps: ApiDeps): RequestHandler {
   return async (_req, res) => {

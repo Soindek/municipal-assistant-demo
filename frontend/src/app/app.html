@@ -1,0 +1,78 @@
+<main class="assistant" [style.--accent]="config()?.branding?.primaryColor || '#1e6fd0'">
+  <header class="assistant__header">
+    @if (config()?.branding?.logoUrl; as logo) {
+      <img class="assistant__logo" [src]="logo" alt="" />
+    }
+    <h1 class="assistant__title">{{ config()?.displayName ?? 'Önkormányzati Ügysegéd' }}</h1>
+  </header>
+
+  @if (configError(); as err) {
+    <p class="assistant__banner">{{ err }}</p>
+  }
+
+  <section class="messages" aria-live="polite">
+    @if (config(); as cfg) {
+      <article class="msg msg--assistant">
+        <div class="msg__bubble">{{ cfg.branding.welcomeMessage }}</div>
+      </article>
+    }
+
+    @for (m of messages(); track $index) {
+      <article class="msg" [class.msg--user]="m.role === 'user'" [class.msg--assistant]="m.role === 'assistant'">
+        <div class="msg__bubble">
+          @if (m.text()) {
+            <span class="msg__text">{{ m.text() }}</span>
+          }
+          @if (m.pending() && !m.text()) {
+            <span class="msg__typing" aria-label="Válasz készül">●●●</span>
+          }
+          @if (m.error(); as e) {
+            <span class="msg__error">{{ e }}</span>
+          }
+        </div>
+
+        @if (m.sources().length) {
+          <div class="sources">
+            <span class="sources__label">Források</span>
+            <ul class="sources__list">
+              @for (s of m.sources(); track $index) {
+                <li>
+                  <a [href]="s.sourceUrl" target="_blank" rel="noopener noreferrer">
+                    {{ s.documentTitle }}@if (s.sectionRef) {, {{ s.sectionRef }}}@if (s.pageNumber) {
+                      ({{ s.pageNumber }}. o.)}
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </article>
+    }
+  </section>
+
+  <form class="composer" (ngSubmit)="send()">
+    <textarea
+      class="composer__input"
+      name="draft"
+      rows="2"
+      placeholder="Írja ide a kérdését…"
+      [ngModel]="draft()"
+      (ngModelChange)="draft.set($event)"
+      [attr.maxlength]="maxChars()"
+      [disabled]="sending()"
+      (keydown)="onKeydown($event)"
+    ></textarea>
+    <div class="composer__row">
+      <span class="composer__count" [class.composer__count--warn]="remaining() < 0">
+        {{ remaining() }}
+      </span>
+      <button class="composer__send" type="submit" [disabled]="!canSend()">
+        {{ sending() ? 'Küldés…' : 'Küldés' }}
+      </button>
+    </div>
+  </form>
+
+  @if (config(); as cfg) {
+    <footer class="assistant__disclaimer">{{ cfg.branding.disclaimer }}</footer>
+  }
+</main>

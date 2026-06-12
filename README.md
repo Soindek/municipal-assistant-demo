@@ -94,19 +94,62 @@ esemény a forrásokkal, majd `done`.
 > letölti és embeddeli — ez időigényes és OpenAI-költséggel jár. Fejlesztéshez a
 > `seed` (manual-upload) a gyors, olcsó út.
 
+## Frontend (Angular 21 chat UI)
+
+Minimális, beágyazható chat-felület (BRIEF 7. pont): üdvözlő üzenet, streamelt
+válasz, kattintható források, jogi disclaimer. A brandinget a backend
+`GET /api/config` végpontjáról tölti (varrat #2 tisztán marad).
+
+```bash
+# 1) A backendnek futnia kell (másik terminálban: npm run dev)
+# 2) Angular dev szerver — a /api hívásokat a backendre proxyzza (localhost:3001)
+npm run dev:frontend
+```
+
+A dev szerver a `http://localhost:4200` címen érhető el. A `/api/*` kéréseket a
+[frontend/proxy.conf.json](frontend/proxy.conf.json) irányítja a backendre, így
+nincs CORS-gond fejlesztés közben.
+
+**Build:** `npm run build -w frontend` → statikus fájlok a `frontend/dist/`-ben.
+
+### Beágyazás iframe-be (auto-magasság)
+
+Az app a tartalom magasságát `postMessage`-dzsel jelzi a szülő oldalnak (nincs
+belső görgetés). A beágyazó WordPress-aloldalon:
+
+```html
+<iframe id="ugyseged" src="https://<host>/ugyseged" style="width:100%;border:0"></iframe>
+<script>
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'municipal-assistant:resize') {
+      document.getElementById('ugyseged').style.height = e.data.height + 'px';
+    }
+  });
+</script>
+```
+
+> A `TenantConfig.embed.allowedOrigins` (CORS + CSP `frame-ancestors`) szabályozza,
+> mely oldalak ágyazhatják be.
+
 ## Hasznos parancsok
 
-| Parancs                             | Mit csinál                             |
-| ----------------------------------- | -------------------------------------- |
-| `npm run db:up` / `npm run db:down` | Lokális Postgres indítása/leállítása   |
-| `npm run migrate`                   | DB séma létrehozása/frissítése         |
-| `npm run seed`                      | Betöltés a `manual-upload` adapterrel  |
-| `npm run reindex`                   | Az összes konfigurált forrás betöltése |
-| `npm run dev`                       | Backend dev szerver                    |
-| `npm run lint` / `npm run format`   | Lint / formázás                        |
-| `npm run typecheck`                 | Típusellenőrzés minden csomagra        |
+| Parancs                             | Mit csinál                              |
+| ----------------------------------- | --------------------------------------- |
+| `npm run db:up` / `npm run db:down` | Lokális Postgres indítása/leállítása    |
+| `npm run migrate`                   | DB séma létrehozása/frissítése          |
+| `npm run seed`                      | Betöltés a `manual-upload` adapterrel   |
+| `npm run reindex`                   | Az összes konfigurált forrás betöltése  |
+| `npm run dev`                       | Backend dev szerver                     |
+| `npm run dev:frontend`              | Angular dev szerver (proxyval)          |
+| `npm run build -w frontend`         | Frontend production build               |
+| `npm run lint` / `npm run format`   | Lint / formázás (backend csomagok)      |
+| `npm run typecheck`                 | Típusellenőrzés (shared/config/backend) |
 
-## Állapot (1. kör)
+## API
 
-A scaffold és a backend vertikális szelet épül (BRIEF 10. pont). A frontend és a
-finomítások a 2. körben jönnek.
+| Végpont             | Leírás                                             |
+| ------------------- | -------------------------------------------------- |
+| `POST /api/ask`     | RAG válasz SSE-streamként (token → sources → done) |
+| `GET /api/health`   | Készenléti ellenőrzés                              |
+| `GET /api/config`   | Tenant branding + limitek a UI-nak                 |
+| `POST /api/reindex` | Védett (Bearer `REINDEX_TOKEN`) kézi betöltés      |

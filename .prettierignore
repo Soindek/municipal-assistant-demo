@@ -3,4 +3,5 @@ dist
 build
 data
 docs
+frontend
 package-lock.json
