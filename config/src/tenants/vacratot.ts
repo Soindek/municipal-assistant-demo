@@ -102,6 +102,9 @@ export const vacratot: DeepPartial<TenantConfig> = {
         listFilter: '-:-:-:-:1:-:-:1:-:-:2:473:-',
         category: 'rendeletek',
         authoritativeFor: ['rendeletek'],
+        // Include the decrees' reasoning ("indokolás") documents — citizens
+        // often ask about the rationale, not just the rule itself.
+        includeReasoning: true,
       },
     },
     // Later: { adapter: 'google-drive', options: { folderId: '...' } }  // Glass pocket (transparency)
