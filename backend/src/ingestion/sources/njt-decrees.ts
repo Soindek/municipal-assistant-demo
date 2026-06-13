@@ -31,12 +31,19 @@ const OptionsSchema = z.object({
   /** Category for the produced documents. */
   category: z.string().default('rendeletek'),
   perPage: z.number().int().positive().max(50).default(50),
-  requestTimeoutMs: z.number().int().positive().default(30000),
+  requestTimeoutMs: z.number().int().positive().default(60000),
   /** Polite delay between requests (njt rate-limit). */
   requestDelayMs: z.number().int().min(0).default(1200),
+  /** Retry attempts per request on transient failures (timeout / 5xx). */
+  requestRetries: z.number().int().min(0).default(2),
   /** Safety cap on pagination. */
   maxPages: z.number().int().positive().default(50),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
+  /**
+   * Include the decrees' reasoning documents ("indokolás", type code K3). Off by
+   * default: those are secondary and roughly double the request volume.
+   */
+  includeReasoning: z.boolean().default(false),
 
   /** Whether to download the decree's attachment PDFs (fee tables, budgets). */
   includeAttachments: z.boolean().default(true),
@@ -163,22 +170,36 @@ export function createNjtDecreesSource(options: Record<string, unknown>): Docume
     return signal ? AbortSignal.any([signal, t]) : t;
   };
 
+  /** Fetch with retry on transient failures (timeout / non-OK), with backoff. */
+  const fetchWithRetry = async (
+    url: string,
+    accept: string,
+    ctx: DocumentSourceContext,
+  ): Promise<Response> => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': opts.userAgent, Accept: accept },
+          signal: withTimeout(ctx.signal),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      } catch (err) {
+        if (attempt >= opts.requestRetries || ctx.signal?.aborted) {
+          throw new Error(`njt request failed (${url}): ${(err as Error).message}`);
+        }
+        ctx.logger.warn(`njt retry ${attempt + 1}/${opts.requestRetries} (${url})`);
+        await delay(opts.requestDelayMs * (attempt + 2), ctx.signal);
+      }
+    }
+  };
+
   const getText = async (url: string, ctx: DocumentSourceContext): Promise<string> => {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': opts.userAgent, Accept: 'text/html' },
-      signal: withTimeout(ctx.signal),
-    });
-    if (!res.ok) throw new Error(`njt request failed (${res.status}): ${url}`);
-    return res.text();
+    return (await fetchWithRetry(url, 'text/html', ctx)).text();
   };
 
   const getBytes = async (url: string, ctx: DocumentSourceContext): Promise<Uint8Array> => {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': opts.userAgent },
-      signal: withTimeout(ctx.signal),
-    });
-    if (!res.ok) throw new Error(`njt attachment failed (${res.status}): ${url}`);
-    return new Uint8Array(await res.arrayBuffer());
+    return new Uint8Array(await (await fetchWithRetry(url, 'application/pdf', ctx)).arrayBuffer());
   };
 
   /** Downloads + extracts an attachment PDF (OCR fallback for scanned ones). */
@@ -213,6 +234,8 @@ export function createNjtDecreesSource(options: Record<string, unknown>): Docume
 
         for (const item of items) {
           if (!item.inForce) continue; // safety: only in-force decrees
+          // Skip reasoning documents (type code K3) unless explicitly enabled.
+          if (!opts.includeReasoning && /-K3-/i.test(item.id)) continue;
           yield {
             externalId: item.id,
             title: [item.title, item.subject].filter(Boolean).join(' – '),
