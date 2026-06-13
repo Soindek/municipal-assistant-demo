@@ -4,6 +4,7 @@ import { getEnv } from '../env.js';
 import { closePool } from '../db/pool.js';
 import { createLlmClients } from '../llm/index.js';
 import { consoleLogger } from '../logger.js';
+import { ocrPdf, terminateOcr } from './ocr.js';
 import { ingestSource, type IngestStats } from './pipeline.js';
 import { createSource } from './registry.js';
 
@@ -21,7 +22,7 @@ export async function run(): Promise<IngestStats> {
   const filter = parseSourceFilter();
   const descriptors = config.sources.filter((s) => !filter || s.adapter === filter);
 
-  const totals: IngestStats = { processed: 0, skipped: 0, scanned: 0, failed: 0 };
+  const totals: IngestStats = { processed: 0, ocred: 0, skipped: 0, scanned: 0, failed: 0 };
   if (descriptors.length === 0) {
     consoleLogger.warn(
       `No sources to process (tenant=${config.tenantId}, filter=${filter ?? 'none'}).`,
@@ -29,19 +30,32 @@ export async function run(): Promise<IngestStats> {
     return totals;
   }
 
-  for (const descriptor of descriptors) {
-    const source = createSource(descriptor);
-    consoleLogger.info(`Source starting: ${source.name}`);
-    const stats = await ingestSource(source, {
-      tenantId: config.tenantId,
-      embedding,
-      logger: consoleLogger,
-    });
-    consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
-    totals.processed += stats.processed;
-    totals.skipped += stats.skipped;
-    totals.scanned += stats.scanned;
-    totals.failed += stats.failed;
+  // OCR hook (env-gated): scanned PDFs are OCR'd when enabled, else marked needs_ocr.
+  const ocr = env.OCR_ENABLED
+    ? (bytes: Uint8Array) =>
+        ocrPdf(bytes, { viewportScale: env.OCR_VIEWPORT_SCALE, maxPages: env.OCR_MAX_PAGES })
+    : undefined;
+  consoleLogger.info(`OCR ${env.OCR_ENABLED ? 'enabled' : 'disabled'} for scanned PDFs.`);
+
+  try {
+    for (const descriptor of descriptors) {
+      const source = createSource(descriptor);
+      consoleLogger.info(`Source starting: ${source.name}`);
+      const stats = await ingestSource(source, {
+        tenantId: config.tenantId,
+        embedding,
+        logger: consoleLogger,
+        ocr,
+      });
+      consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
+      totals.processed += stats.processed;
+      totals.ocred += stats.ocred;
+      totals.skipped += stats.skipped;
+      totals.scanned += stats.scanned;
+      totals.failed += stats.failed;
+    }
+  } finally {
+    await terminateOcr();
   }
 
   consoleLogger.info(`Total: ${JSON.stringify(totals)}`);

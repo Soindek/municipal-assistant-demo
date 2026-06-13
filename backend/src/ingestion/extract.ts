@@ -19,7 +19,9 @@ async function extractPdf(bytes: Uint8Array): Promise<PageText[]> {
   // Dynamic import: pdfjs is ESM and only needs to be loaded during ingestion.
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await pdfjs.getDocument({
-    data: bytes,
+    // Copy: pdfjs transfers (detaches) the ArrayBuffer, and the caller reuses
+    // these bytes (e.g. for an OCR fallback on the same document).
+    data: new Uint8Array(bytes),
     isEvalSupported: false,
     useSystemFonts: true,
   }).promise;
@@ -43,9 +45,8 @@ async function extractPdf(bytes: Uint8Array): Promise<PageText[]> {
 /**
  * Per-page text from fetched content. Handles PDF and plain text.
  *
- * TODO (OCR fallback, BRIEF points 3/5/12): if `likelyScanned`, run Tesseract
- * `hun` OCR on the page images. This is the integration point — the pipeline
- * already signals when a document appears to be scanned.
+ * When `likelyScanned` is true there is no usable text layer; the pipeline then
+ * runs the OCR fallback (see ocr.ts) on the page images.
  */
 export async function extractText(content: FetchedContent): Promise<ExtractedDocument> {
   let pages: PageText[];

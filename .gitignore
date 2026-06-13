@@ -10,3 +10,6 @@ build/
 # A feltöltési mappa tartalmát nem verziózzuk, de a mappát megtartjuk.
 data/uploads/*
 !data/uploads/.gitkeep
+
+# Tesseract OCR cache (WASM core + letöltött nyelvi modell)
+data/ocr-cache/

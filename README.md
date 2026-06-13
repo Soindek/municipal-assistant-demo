@@ -94,10 +94,17 @@ esemény a forrásokkal, majd `done`.
 > letölti és embeddeli — ez időigényes és OpenAI-költséggel jár. Fejlesztéshez a
 > `seed` (manual-upload) a gyors, olcsó út.
 
-**Szkennelt PDF-ek:** ahol nincs kinyerhető szöveg (valószínűleg szkennelt),
-a pipeline NEM ingeszt szemét szöveget — a dokumentum `status='needs_ocr'`
-jelöléssel, chunk nélkül kerül a `documents` táblába (így kereshetetlen marad,
-de nyomon követhető és OCR-körben re-indexelhető). Listázás:
+**Szkennelt PDF-ek (OCR):** ahol nincs kinyerhető szövegréteg (szkennelt kép),
+a pipeline a **Tesseract (magyar) OCR-t** futtatja (`tesseract.js` + PDF→PNG
+render `@napi-rs/canvas`-szal — nincs rendszerszintű függőség). A cél a
+**kereshetőség és idézhetőség**, nem a tökéletes átirat: aláírt/pecsétes/ferde
+szkenneknél a szöveg zajos lehet. Kapcsolók: `OCR_ENABLED`, `OCR_MAX_PAGES`,
+`OCR_VIEWPORT_SCALE` (lásd `.env.example`).
+
+Ha az OCR is üres eredményt ad (vagy `OCR_ENABLED=false`), a dokumentum
+`status='needs_ocr'` jelölést kap chunk nélkül — kereshetetlen marad, de
+nyomon követhető és bármikor re-indexelhető (a nem-`active` dokumentumokat a
+betöltés mindig újrafeldolgozza). Listázás:
 `SELECT external_id, title FROM documents WHERE status = 'needs_ocr';`
 
 ## Frontend (Angular 21 chat UI)

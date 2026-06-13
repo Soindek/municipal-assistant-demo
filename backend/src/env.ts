@@ -16,6 +16,16 @@ const EnvSchema = z.object({
   UPLOADS_DIR: z.string().min(1).default('./data/uploads'),
   /** Simple bearer-token protection for /api/reindex (optional). */
   REINDEX_TOKEN: z.string().optional(),
+
+  /** OCR scanned PDFs during ingestion. Slow; set to 'false' for fast runs. */
+  OCR_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => !['false', '0', 'no', 'off'].includes(v.toLowerCase())),
+  /** Safety cap on pages OCR'd per document (0 = no cap). */
+  OCR_MAX_PAGES: z.coerce.number().int().min(0).default(15),
+  /** Render scale before OCR; higher = better accuracy but slower. */
+  OCR_VIEWPORT_SCALE: z.coerce.number().positive().default(3),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

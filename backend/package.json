@@ -14,11 +14,13 @@
   "dependencies": {
     "@municipal-assistant/config": "*",
     "@municipal-assistant/shared": "*",
+    "@napi-rs/canvas": "^1.0.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "openai": "^4.68.4",
     "pdfjs-dist": "^4.7.76",
     "pg": "^8.13.1",
+    "tesseract.js": "^7.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
