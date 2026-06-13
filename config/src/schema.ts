@@ -28,6 +28,8 @@ export const tenantConfigSchema = z.object({
     message: 'At least one category is required',
   }),
 
+  categoryKeywords: z.record(z.array(z.string())).optional(),
+
   sources: z.array(sourceDescriptorSchema),
 
   rag: z.object({

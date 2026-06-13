@@ -32,6 +32,12 @@ export interface PipelineDeps {
    * are OCR'd and ingested; when absent, they are marked needs_ocr and skipped.
    */
   ocr?: (bytes: Uint8Array) => Promise<PageText[]>;
+  /**
+   * Optional content-based category refinement: given the title and a text
+   * sample, returns a category key (falls back to the adapter's guess). Only
+   * applied to documents that have extractable/OCR'd text.
+   */
+  categorize?: (title: string, text: string, fallback: string) => string;
 }
 
 /** Embed in batches so we don't exceed the provider's request limits. */
@@ -127,6 +133,15 @@ export async function ingestSource(
         );
         stats.scanned++;
         continue;
+      }
+
+      // Refine the category from the actual (extracted/OCR'd) text.
+      if (deps.categorize) {
+        const sample = pages
+          .map((p) => p.text)
+          .join('\n')
+          .slice(0, 2000);
+        docFields.category = deps.categorize(doc.title, sample, doc.category);
       }
 
       const embeddings = await embedInBatches(

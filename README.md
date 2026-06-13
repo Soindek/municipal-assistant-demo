@@ -107,6 +107,12 @@ nyomon követhető és bármikor re-indexelhető (a nem-`active` dokumentumokat 
 betöltés mindig újrafeldolgozza). Listázás:
 `SELECT external_id, title FROM documents WHERE status = 'needs_ocr';`
 
+**Kategorizálás:** a dokumentum kategóriáját a betöltés a **tartalomból**
+(kinyert/OCR-ezett szöveg) állapítja meg, nem a fájlnévből — a `TenantConfig`
+`categoryKeywords` (kategória-kulcsonkénti, sorrend = prioritás) kulcsszavai
+alapján, a kategória-címkékből képzett tartalékkal. A már betöltött dokumentumok
+újrakategorizálása (re-fetch/embed nélkül): `npm run recategorize`.
+
 ## Frontend (Angular 21 chat UI)
 
 Minimális, beágyazható chat-felület (BRIEF 7. pont): üdvözlő üzenet, streamelt
@@ -152,6 +158,7 @@ belső görgetés). A beágyazó WordPress-aloldalon:
 | `npm run migrate`                   | DB séma létrehozása/frissítése          |
 | `npm run seed`                      | Betöltés a `manual-upload` adapterrel   |
 | `npm run reindex`                   | Az összes konfigurált forrás betöltése  |
+| `npm run recategorize`              | Meglévő dokumentumok újrakategorizálása |
 | `npm run dev`                       | Backend dev szerver                     |
 | `npm run dev:frontend`              | Angular dev szerver (proxyval)          |
 | `npm run build -w frontend`         | Frontend production build               |

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/ingestion/run.ts --source=manual-upload",
-    "reindex": "tsx src/ingestion/run.ts"
+    "reindex": "tsx src/ingestion/run.ts",
+    "recategorize": "tsx src/ingestion/recategorize.ts"
   },
   "dependencies": {
     "@municipal-assistant/config": "*",

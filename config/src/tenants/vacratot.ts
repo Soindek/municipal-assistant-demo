@@ -32,6 +32,32 @@ export const vacratot: DeepPartial<TenantConfig> = {
     hirmondo: 'Vácrátóti Hírmondó',
   },
 
+  // Content keywords for categorizing a document from its (OCR'd) text.
+  // Order = priority (first match wins). Strong document-TYPE signals come
+  // first; generic topic words (kérelem, bejelentés) are avoided as they
+  // appear across many document types and would mis-grab real rendeletek.
+  categoryKeywords: {
+    jegyzokonyvek: ['jegyzőkönyv', 'jkv', 'képviselő-testület ülés'],
+    hvb_hatarozatok: ['választási bizottság', 'helyi választási'],
+    telepulesrendezes: [
+      'szabályozási terv',
+      'helyi építési szabályzat',
+      'hész',
+      'településrendezési',
+      'változtatási tilalom',
+    ],
+    polgarmesteri_hatarozatok: ['polgármesteri határozat', 'polgármester határozat'],
+    szerzodesek: [
+      'vállalkozási szerződés',
+      'megbízási szerződés',
+      'adásvételi',
+      'bérleti szerződés',
+    ],
+    rendeletek: ['önkormányzati rendelet', 'rendelete', 'rendelet módosítás'],
+    nyomtatvanyok: ['nyomtatvány', 'űrlap', 'adatlap', 'bejelentésköteles'],
+    hirmondo: ['hírmondó'],
+  },
+
   sources: [
     // Round 1: get the full pipeline working with the manual-upload adapter.
     // Put the test PDFs under data/uploads/ (or the directory specified here).
