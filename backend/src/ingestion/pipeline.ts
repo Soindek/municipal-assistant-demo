@@ -11,10 +11,12 @@ import {
   type ChunkInput,
 } from '../db/repositories/chunks.js';
 import { chunkPages } from './chunk.js';
-import { extractText } from './extract.js';
+import { extractText, type PageText } from './extract.js';
 
 export interface IngestStats {
   processed: number;
+  /** Of `processed`, how many were recovered via OCR. */
+  ocred: number;
   skipped: number;
   scanned: number;
   failed: number;
@@ -25,6 +27,11 @@ export interface PipelineDeps {
   embedding: EmbeddingClient;
   logger: SourceLogger;
   signal?: AbortSignal;
+  /**
+   * Optional OCR hook for scanned PDFs. When provided, likely-scanned documents
+   * are OCR'd and ingested; when absent, they are marked needs_ocr and skipped.
+   */
+  ocr?: (bytes: Uint8Array) => Promise<PageText[]>;
 }
 
 /** Embed in batches so we don't exceed the provider's request limits. */
@@ -43,8 +50,8 @@ async function embedInBatches(
 
 /**
  * Generic ingestion pipeline for a single source:
- *   list → (skip based on change token) → fetch → extract(+OCR TODO) →
- *   §-aware chunking → embedding → upsert.
+ *   list → (skip based on change token) → fetch → extract (OCR fallback for
+ *   scanned PDFs) → §-aware chunking → embedding → upsert.
  *
  * It knows nothing about the source beyond what the DocumentSource interface
  * provides (BRIEF points 3/4).
@@ -53,7 +60,7 @@ export async function ingestSource(
   source: DocumentSource,
   deps: PipelineDeps,
 ): Promise<IngestStats> {
-  const stats: IngestStats = { processed: 0, skipped: 0, scanned: 0, failed: 0 };
+  const stats: IngestStats = { processed: 0, ocred: 0, skipped: 0, scanned: 0, failed: 0 };
   const ctx: DocumentSourceContext = {
     tenantId: deps.tenantId,
     logger: deps.logger,
@@ -62,9 +69,16 @@ export async function ingestSource(
 
   for await (const doc of source.list(ctx)) {
     try {
-      // Change detection: if there is a token and it matches the stored one, skip.
+      // Change detection: skip only ACTIVE documents whose token is unchanged.
+      // needs_ocr (and other non-active) docs are always reprocessed — so once an
+      // OCR hook is available, previously-skipped scans get picked up.
       const existing = await findByExternalId(source.name, doc.externalId);
-      if (existing && doc.changeToken !== null && existing.changeToken === doc.changeToken) {
+      if (
+        existing &&
+        existing.status === 'active' &&
+        doc.changeToken !== null &&
+        existing.changeToken === doc.changeToken
+      ) {
         deps.logger.info(`Skipped (unchanged): ${doc.title}`);
         stats.skipped++;
         continue;
@@ -85,21 +99,33 @@ export async function ingestSource(
         publishedAt: doc.publishedAt ?? null,
       };
 
+      // Decide the page set: extracted text, or OCR for scanned PDFs.
+      let pages = extracted.pages;
+      let viaOcr = false;
       if (extracted.likelyScanned) {
-        // Mark scanned docs as needs_ocr (no chunks) so the corpus stays clean
-        // but they remain tracked and re-indexable once OCR lands (see extract.ts
-        // TODO). They never reach search: no chunks + retrieval filters status.
-        const documentId = await upsertDocument({ ...docFields, status: 'needs_ocr' });
-        await deleteChunksForDocument(documentId);
-        deps.logger.warn(`Scanned, no extractable text — marked needs_ocr: ${doc.title}`);
-        stats.scanned++;
-        continue;
+        if (!deps.ocr) {
+          // No OCR available: mark needs_ocr (no chunks) so the corpus stays clean
+          // but the doc is tracked and re-indexable once OCR is enabled.
+          const documentId = await upsertDocument({ ...docFields, status: 'needs_ocr' });
+          await deleteChunksForDocument(documentId);
+          deps.logger.warn(`Scanned, no extractable text — marked needs_ocr: ${doc.title}`);
+          stats.scanned++;
+          continue;
+        }
+        deps.logger.info(`Scanned — running OCR: ${doc.title}`);
+        pages = await deps.ocr(fetched.bytes);
+        viaOcr = true;
       }
 
-      const rawChunks = chunkPages(extracted.pages);
+      const rawChunks = chunkPages(pages);
       if (rawChunks.length === 0) {
-        deps.logger.warn(`No extractable chunk — skipped: ${doc.title}`);
-        stats.skipped++;
+        // Even OCR found nothing usable → keep it tracked as needs_ocr.
+        const documentId = await upsertDocument({ ...docFields, status: 'needs_ocr' });
+        await deleteChunksForDocument(documentId);
+        deps.logger.warn(
+          `No extractable text${viaOcr ? ' (after OCR)' : ''} — needs_ocr: ${doc.title}`,
+        );
+        stats.scanned++;
         continue;
       }
 
@@ -121,8 +147,11 @@ export async function ingestSource(
       }));
 
       await replaceChunks(documentId, chunkInputs);
-      deps.logger.info(`Processed: ${doc.title} (${chunkInputs.length} chunks)`);
+      deps.logger.info(
+        `Processed${viaOcr ? ' (OCR)' : ''}: ${doc.title} (${chunkInputs.length} chunks)`,
+      );
       stats.processed++;
+      if (viaOcr) stats.ocred++;
     } catch (err) {
       deps.logger.error(`Error (${doc.title}): ${(err as Error).message}`);
       stats.failed++;
