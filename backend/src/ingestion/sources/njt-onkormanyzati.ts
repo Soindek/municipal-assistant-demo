@@ -6,6 +6,8 @@ import type {
   FetchedContent,
   SourceDocument,
 } from '@municipal-assistant/shared';
+import { extractText } from '../extract.js';
+import { ocrPdf } from '../ocr.js';
 
 /**
  * VARRAT #1 — `njt-onkormanyzati` adapter: a hatályos önkormányzati rendeletek
@@ -37,6 +39,16 @@ const OptionsSchema = z.object({
   /** Biztonsági felső korlát a lapozásra. */
   maxPages: z.number().int().positive().default(50),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
+
+  /** Töltse-e le a rendelet melléklet-PDF-jeit (táblázatok, díjak, költségvetés). */
+  includeAttachments: z.boolean().default(true),
+  /** Szkennelt melléklet-PDF-ek OCR-je (lassú, magyar). */
+  ocrAttachments: z.boolean().default(true),
+  /** Felső korlát a mellékletek számára dokumentumonként. */
+  maxAttachmentsPerDoc: z.number().int().min(0).default(20),
+  /** Melléklet-OCR paraméterek (a fő OCR-rel összhangban). */
+  ocrViewportScale: z.number().positive().default(3),
+  ocrMaxPages: z.number().int().min(0).default(15),
 });
 
 export interface NjtListItem {
@@ -67,26 +79,39 @@ export function parseListPage(html: string): { items: NjtListItem[]; total: numb
   const items: NjtListItem[] = [];
   $('.resultItemWrapper').each((_, el) => {
     const w = $(el);
-    // A cím-link a .resultItem közvetlen gyermeke (a "K3" indokolás-ikon kívül van).
-    const link = w.find('.resultItem > a[href^="jogszabaly/"]').first();
+    // The decree (title) link — any jogszabaly link except the "K3" justification
+    // icon (.document_justification_icon). Robust to type-code variations.
+    const link = w.find('a[href^="jogszabaly/"]').not('.document_justification_icon').first();
     const id = (link.attr('href') ?? '').replace(/^jogszabaly\//, '').trim();
     if (!id) return;
 
-    const dateRaw = w.find('.resultItem .resultDate').first().text().trim();
+    const dateRaw = w.find('.resultDate').first().text().trim();
+    const statusTitle = w.find('.document_info_icon [data-njttitle]').attr('data-njttitle') ?? '';
     items.push({
       id,
       title: link.text().replace(/\s+/g, ' ').trim(),
-      subject: w.find('.resultItem p.text-small').first().text().replace(/\s+/g, ' ').trim(),
+      subject: w.find('p.text-small').first().text().replace(/\s+/g, ' ').trim(),
       effectiveDate: dateRaw.replace(/[–-]\s*$/, '').trim() || null,
-      inForce: w.find('.document_info_icon [data-njttitle]').attr('data-njttitle') === 'Hatályos',
+      // Trust the "csak hatályos" view: include unless explicitly out of force.
+      inForce: !/hatályon kívül|hatálytalan/iu.test(statusTitle),
     });
   });
 
   return { items, total };
 }
 
-/** §-tudatos sima szöveg a rendeletoldal HTML-jéből (cím + bekezdések sortörve). */
-export function parseDecreeText(html: string): { title: string; text: string } {
+export interface DecreeAttachment {
+  label: string;
+  /** Relatív vagy abszolút PDF-URL (pl. '/document/.../melleklet.pdf'). */
+  url: string;
+}
+
+/** §-tudatos sima szöveg + melléklet-PDF linkek a rendeletoldal HTML-jéből. */
+export function parseDecreeText(html: string): {
+  title: string;
+  text: string;
+  attachments: DecreeAttachment[];
+} {
   const $ = cheerio.load(html);
   const root = $('#jogszab');
 
@@ -104,7 +129,17 @@ export function parseDecreeText(html: string): { title: string; text: string } {
     if (text) parts.push(text);
   });
 
-  return { title, text: parts.join('\n') };
+  // Melléklet-PDF linkek (a táblázatok/számok ezekben vannak, nem a HTML-törzsben).
+  const attachments: DecreeAttachment[] = [];
+  const seen = new Set<string>();
+  root.find('a[href]').each((_, el) => {
+    const href = ($(el).attr('href') ?? '').trim();
+    if (!/\.pdf($|\?)/i.test(href) || seen.has(href)) return;
+    seen.add(href);
+    attachments.push({ label: $(el).text().replace(/\s+/g, ' ').trim() || href, url: href });
+  });
+
+  return { title, text: parts.join('\n'), attachments };
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
@@ -137,6 +172,35 @@ export function createNjtOnkormanyzatiSource(options: Record<string, unknown>): 
     });
     if (!res.ok) throw new Error(`njt request failed (${res.status}): ${url}`);
     return res.text();
+  };
+
+  const getBytes = async (url: string, ctx: DocumentSourceContext): Promise<Uint8Array> => {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': opts.userAgent },
+      signal: withTimeout(ctx.signal),
+    });
+    if (!res.ok) throw new Error(`njt attachment failed (${res.status}): ${url}`);
+    return new Uint8Array(await res.arrayBuffer());
+  };
+
+  /** Downloads + extracts an attachment PDF (OCR fallback for scanned ones). */
+  const extractAttachment = async (url: string, ctx: DocumentSourceContext): Promise<string> => {
+    await delay(opts.requestDelayMs, ctx.signal);
+    const bytes = await getBytes(url, ctx);
+    const extracted = await extractText({
+      externalId: url,
+      bytes,
+      mimeType: 'application/pdf',
+    });
+    if (!extracted.likelyScanned) {
+      return extracted.pages.map((p) => p.text).join('\n');
+    }
+    if (!opts.ocrAttachments) return '';
+    const pages = await ocrPdf(bytes, {
+      viewportScale: opts.ocrViewportScale,
+      maxPages: opts.ocrMaxPages,
+    });
+    return pages.map((p) => p.text).join('\n');
   };
 
   return {
@@ -172,10 +236,25 @@ export function createNjtOnkormanyzatiSource(options: Record<string, unknown>): 
       // and njt rate-limits — space the downloads out.
       await delay(opts.requestDelayMs, ctx.signal);
       const html = await getText(`${opts.baseUrl}/jogszabaly/${doc.externalId}`, ctx);
-      const { text } = parseDecreeText(html);
+      const { text, attachments } = parseDecreeText(html);
+
+      const sections = [text];
+      if (opts.includeAttachments) {
+        const list = attachments.slice(0, opts.maxAttachmentsPerDoc);
+        for (const att of list) {
+          const absUrl = att.url.startsWith('http') ? att.url : `${opts.baseUrl}${att.url}`;
+          try {
+            const attText = await extractAttachment(absUrl, ctx);
+            if (attText.trim()) sections.push(`\n=== ${att.label} ===\n${attText}`);
+          } catch (err) {
+            ctx.logger.warn(`njt attachment skipped (${att.label}): ${(err as Error).message}`);
+          }
+        }
+      }
+
       return {
         externalId: doc.externalId,
-        bytes: new TextEncoder().encode(text),
+        bytes: new TextEncoder().encode(sections.join('\n')),
         mimeType: 'text/plain',
       };
     },
