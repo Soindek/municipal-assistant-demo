@@ -168,6 +168,9 @@ export function createNjtOnkormanyzatiSource(options: Record<string, unknown>): 
     },
 
     async fetch(doc: SourceDocument, ctx: DocumentSourceContext): Promise<FetchedContent> {
+      // Polite throttle: the pipeline calls fetch() once per decree with no gap,
+      // and njt rate-limits — space the downloads out.
+      await delay(opts.requestDelayMs, ctx.signal);
       const html = await getText(`${opts.baseUrl}/jogszabaly/${doc.externalId}`, ctx);
       const { text } = parseDecreeText(html);
       return {
