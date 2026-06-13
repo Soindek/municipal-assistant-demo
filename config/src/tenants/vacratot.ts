@@ -105,6 +105,10 @@ export const vacratot: DeepPartial<TenantConfig> = {
         // Include the decrees' reasoning ("indokolás") documents — citizens
         // often ask about the rationale, not just the rule itself.
         includeReasoning: true,
+        // njt rate-limits aggressively (HTTP 500 under bursts); be gentle.
+        // Failed docs aren't upserted, so simply re-running reindex retries
+        // only the missing ones (the done ones are skipped) until it converges.
+        requestDelayMs: 3000,
       },
     },
     // Later: { adapter: 'google-drive', options: { folderId: '...' } }  // Glass pocket (transparency)
