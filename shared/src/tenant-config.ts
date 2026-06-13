@@ -38,6 +38,13 @@ export interface TenantConfig {
   /** Taxonomy: key → human label. SourceDocument.category references these. */
   categories: Record<string, string>;
 
+  /**
+   * Optional content keywords per category key, used to categorize a document
+   * from its extracted/OCR text (more reliable than a filename). Ordered: the
+   * first matching keyword wins, so list more specific categories first.
+   */
+  categoryKeywords?: Record<string, string[]>;
+
   /** Which sources we ingest from. */
   sources: SourceDescriptor[];
 

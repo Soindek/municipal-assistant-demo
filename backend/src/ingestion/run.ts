@@ -4,6 +4,7 @@ import { getEnv } from '../env.js';
 import { closePool } from '../db/pool.js';
 import { createLlmClients } from '../llm/index.js';
 import { consoleLogger } from '../logger.js';
+import { buildCategorizer } from './categorize.js';
 import { ocrPdf, terminateOcr } from './ocr.js';
 import { ingestSource, type IngestStats } from './pipeline.js';
 import { createSource } from './registry.js';
@@ -37,6 +38,9 @@ export async function run(): Promise<IngestStats> {
     : undefined;
   consoleLogger.info(`OCR ${env.OCR_ENABLED ? 'enabled' : 'disabled'} for scanned PDFs.`);
 
+  // Content-based category refinement from the (extracted/OCR'd) text.
+  const categorize = buildCategorizer(config);
+
   try {
     for (const descriptor of descriptors) {
       const source = createSource(descriptor);
@@ -46,6 +50,7 @@ export async function run(): Promise<IngestStats> {
         embedding,
         logger: consoleLogger,
         ocr,
+        categorize,
       });
       consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
       totals.processed += stats.processed;
