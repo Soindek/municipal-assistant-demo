@@ -10,66 +10,64 @@ import { extractText } from '../extract.js';
 import { ocrPdf } from '../ocr.js';
 
 /**
- * VARRAT #1 — `njt-onkormanyzati` adapter: a hatályos önkormányzati rendeletek
- * hiteles forrása a Nemzeti Jogszabálytárból (njt.jog.gov.hu).
+ * SEAM #1 — `njt-decrees` adapter: the authoritative source for in-force
+ * municipal decrees, from the Nemzeti Jogszabálytár (njt.jog.gov.hu).
  *
- * A lista- és rendeletoldalak SZERVER-RENDERELT HTML-ek (nem a blokkolt JSON-API).
- * Az adapter a "csak hatályos" szűrt listanézetet lapozza, és a rendeletoldal
- * §-tudatos szövegét nyeri ki (a magot nem terheli njt-specifikus tudással).
+ * The list and decree pages are SERVER-RENDERED HTML (not the blocked JSON API).
+ * The adapter paginates the in-force-only filtered list view and extracts the
+ * §-aware decree text, so the core stays njt-agnostic.
  *
- * Megjegyzés: a robots.txt engedi a `/jogszabaly/*`-ot; az njt rate-limitel, ezért
- * a kérések között udvarias késleltetés van. A választ idézzük + njt-re linkelünk
- * vissza (sourceUrl), nem közöljük újra teljes terjedelmében.
+ * Note: robots.txt allows /jogszabaly/*; njt rate-limits, so requests are spaced
+ * with a polite delay. We cite + link back to njt (sourceUrl), not republish.
  */
 
 const OptionsSchema = z.object({
   baseUrl: z.string().url().default('https://njt.jog.gov.hu'),
   /**
-   * Az előszűrt lista-útszegmens, amely a kibocsátót (települést) ÉS a
-   * "csak hatályos" nézetet kódolja. Pl. '-:-:-:-:1:-:-:1:-:-:2:473:-'
-   * (a 473 = Vácrátót, a 2 = Pest vármegye).
+   * The pre-filtered list path segment encoding the issuer (settlement) AND the
+   * in-force-only view. E.g. '-:-:-:-:1:-:-:1:-:-:2:473:-' (473 = Vácrátót, 2 = Pest).
    */
   listFilter: z.string().min(1),
-  /** A létrehozott dokumentumok kategóriája. */
+  /** Category for the produced documents. */
   category: z.string().default('rendeletek'),
   perPage: z.number().int().positive().max(50).default(50),
   requestTimeoutMs: z.number().int().positive().default(30000),
-  /** Udvarias késleltetés a kérések között (njt rate-limit). */
+  /** Polite delay between requests (njt rate-limit). */
   requestDelayMs: z.number().int().min(0).default(1200),
-  /** Biztonsági felső korlát a lapozásra. */
+  /** Safety cap on pagination. */
   maxPages: z.number().int().positive().default(50),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
 
-  /** Töltse-e le a rendelet melléklet-PDF-jeit (táblázatok, díjak, költségvetés). */
+  /** Whether to download the decree's attachment PDFs (fee tables, budgets). */
   includeAttachments: z.boolean().default(true),
-  /** Szkennelt melléklet-PDF-ek OCR-je (lassú, magyar). */
+  /** OCR scanned attachment PDFs (slow, Hungarian). */
   ocrAttachments: z.boolean().default(true),
-  /** Felső korlát a mellékletek számára dokumentumonként. */
+  /** Cap on the number of attachments per document. */
   maxAttachmentsPerDoc: z.number().int().min(0).default(20),
-  /** Melléklet-OCR paraméterek (a fő OCR-rel összhangban). */
+  /** Attachment OCR parameters (kept in line with the main OCR). */
   ocrViewportScale: z.number().positive().default(3),
   ocrMaxPages: z.number().int().min(0).default(15),
 });
 
 export interface NjtListItem {
-  /** Stabil rendelet-azonosító, pl. '2026-6-SP-5Y473'. */
+  /** Stable decree id, e.g. '2026-6-SP-5Y473'. */
   id: string;
   title: string;
   subject: string;
-  /** Hatálybalépés dátuma a listából, pl. '2026. 05. 08.'. */
+  /** Effective date from the list, e.g. '2026. 05. 08.'. */
   effectiveDate: string | null;
   inForce: boolean;
 }
 
-/** "2026. 05. 08." → Date (UTC). Érvénytelen bemenetnél null. */
-function parseHungarianDate(raw: string | null): Date | null {
+/** "2026. 05. 08." → Date (UTC). Returns null on invalid input. */
+function parseEffectiveDate(raw: string | null): Date | null {
   if (!raw) return null;
   const m = raw.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);
   if (!m) return null;
   return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
 }
 
-/** Kinyeri a találati tételeket és a teljes találatszámot a listaoldal HTML-jéből. */
+/** Extracts the result items and the total hit count from the list page HTML. */
 export function parseListPage(html: string): { items: NjtListItem[]; total: number } {
   const $ = cheerio.load(html);
 
@@ -92,7 +90,7 @@ export function parseListPage(html: string): { items: NjtListItem[]; total: numb
       title: link.text().replace(/\s+/g, ' ').trim(),
       subject: w.find('p.text-small').first().text().replace(/\s+/g, ' ').trim(),
       effectiveDate: dateRaw.replace(/[–-]\s*$/, '').trim() || null,
-      // Trust the "csak hatályos" view: include unless explicitly out of force.
+      // Trust the in-force-only view: include unless explicitly out of force.
       inForce: !/hatályon kívül|hatálytalan/iu.test(statusTitle),
     });
   });
@@ -102,11 +100,11 @@ export function parseListPage(html: string): { items: NjtListItem[]; total: numb
 
 export interface DecreeAttachment {
   label: string;
-  /** Relatív vagy abszolút PDF-URL (pl. '/document/.../melleklet.pdf'). */
+  /** Relative or absolute PDF URL (e.g. '/document/.../attachment.pdf'). */
   url: string;
 }
 
-/** §-tudatos sima szöveg + melléklet-PDF linkek a rendeletoldal HTML-jéből. */
+/** §-aware plain text + attachment PDF links from the decree page HTML. */
 export function parseDecreeText(html: string): {
   title: string;
   text: string;
@@ -123,13 +121,13 @@ export function parseDecreeText(html: string): {
       .trim();
 
   const parts: string[] = [];
-  // A cím, alcím, preambulum, szakaszok (N. §) és pontok mind <h1>/<h2>/<p>-ben vannak.
+  // The title, subtitle, preamble, sections (N. §) and points are all in <h1>/<h2>/<p>.
   root.find('h1, h2, p').each((_, el) => {
     const text = $(el).text().replace(/\s+/g, ' ').trim();
     if (text) parts.push(text);
   });
 
-  // Melléklet-PDF linkek (a táblázatok/számok ezekben vannak, nem a HTML-törzsben).
+  // Attachment PDF links (the tables/figures live here, not in the HTML body).
   const attachments: DecreeAttachment[] = [];
   const seen = new Set<string>();
   root.find('a[href]').each((_, el) => {
@@ -157,7 +155,7 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-export function createNjtOnkormanyzatiSource(options: Record<string, unknown>): DocumentSource {
+export function createNjtDecreesSource(options: Record<string, unknown>): DocumentSource {
   const opts = OptionsSchema.parse(options);
 
   const withTimeout = (signal: AbortSignal | undefined): AbortSignal => {
@@ -204,7 +202,7 @@ export function createNjtOnkormanyzatiSource(options: Record<string, unknown>): 
   };
 
   return {
-    name: 'njt-onkormanyzati',
+    name: 'njt-decrees',
 
     async *list(ctx: DocumentSourceContext): AsyncIterable<SourceDocument> {
       for (let page = 1; page <= opts.maxPages; page++) {
@@ -223,7 +221,7 @@ export function createNjtOnkormanyzatiSource(options: Record<string, unknown>): 
             mimeType: 'text/plain',
             // The effective date changes when a newer in-force version supersedes.
             changeToken: item.effectiveDate,
-            publishedAt: parseHungarianDate(item.effectiveDate),
+            publishedAt: parseEffectiveDate(item.effectiveDate),
             language: 'hu',
           };
         }

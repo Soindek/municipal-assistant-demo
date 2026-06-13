@@ -35,7 +35,7 @@ export const vacratot: DeepPartial<TenantConfig> = {
   // Content keywords for categorizing a document from its (OCR'd) text.
   // Order = priority (first match wins). Strong document-TYPE signals come
   // first; generic topic words (kérelem, bejelentés) are avoided as they
-  // appear across many document types and would mis-grab real rendeletek.
+  // appear across many document types and would mis-grab real decrees.
   categoryKeywords: {
     jegyzokonyvek: ['jegyzőkönyv', 'jkv', 'képviselő-testület ülés'],
     hvb_hatarozatok: ['választási bizottság', 'helyi választási'],
@@ -93,10 +93,10 @@ export const vacratot: DeepPartial<TenantConfig> = {
     },
     // Authoritative, in-force decrees from the Nemzeti Jogszabálytár (njt.jog.gov.hu).
     // listFilter encodes the settlement (473 = Vácrátót, 2 = Pest) AND the
-    // "csak hatályos" (in-force only) view, so revoked decrees are excluded.
-    // authoritativeFor: njt overrides vacratot.hu's scanned rendeletek (same category).
+    // in-force-only view, so revoked decrees are excluded.
+    // authoritativeFor: njt overrides vacratot.hu's scanned decrees (same 'rendeletek' category).
     {
-      adapter: 'njt-onkormanyzati',
+      adapter: 'njt-decrees',
       options: {
         baseUrl: 'https://njt.jog.gov.hu',
         listFilter: '-:-:-:-:1:-:-:1:-:-:2:473:-',

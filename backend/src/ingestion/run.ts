@@ -64,7 +64,7 @@ export async function run(): Promise<IngestStats> {
         totals.failed += stats.failed;
 
         // Authoritative source: supersede other sources' docs in its categories
-        // (e.g. njt.hu in-force decrees override vacratot.hu scanned rendeletek).
+        // (e.g. njt.hu in-force decrees override vacratot.hu scanned decrees).
         // Only fires when this source actually ingested something this run.
         const authoritativeFor = Array.isArray(descriptor.options?.authoritativeFor)
           ? (descriptor.options.authoritativeFor as unknown[]).filter(

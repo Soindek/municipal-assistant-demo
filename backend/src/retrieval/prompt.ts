@@ -7,7 +7,7 @@ export function buildSystemPrompt(config: TenantConfig): string {
   return config.rag.systemPromptTemplate.replaceAll('{displayName}', config.displayName);
 }
 
-/** Joins the results into a numbered, citable [Forrás N] block for the LLM. */
+/** Joins the results into a numbered, citable source block for the LLM. */
 export function buildContextBlock(chunks: RetrievedChunk[]): string {
   return chunks
     .map((c, i) => {
