@@ -4,6 +4,7 @@ import type {
   SourceDescriptor,
 } from '@municipal-assistant/shared';
 import { createManualUploadSource } from './sources/manual-upload.js';
+import { createNjtOnkormanyzatiSource } from './sources/njt-onkormanyzati.js';
 import { createWordpressAccordionSource } from './sources/wordpress-accordion.js';
 
 /**
@@ -13,6 +14,7 @@ import { createWordpressAccordionSource } from './sources/wordpress-accordion.js
 const factories: Record<string, DocumentSourceFactory> = {
   'manual-upload': createManualUploadSource,
   'wordpress-accordion': createWordpressAccordionSource,
+  'njt-onkormanyzati': createNjtOnkormanyzatiSource,
 };
 
 export function registerAdapter(name: string, factory: DocumentSourceFactory): void {

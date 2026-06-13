@@ -89,6 +89,15 @@ esemény a forrásokkal, majd `done`.
   plugin kategória-taxonómiáját, így a kategóriát a címből próbáljuk kitalálni,
   különben a `defaultCategory`. Az `npm run reindex` ezt a forrást is feldolgozza
   (a teljes médiatárat — sok PDF, lehet közte szkennelt is, amihez OCR kell).
+- **`njt-onkormanyzati`** — a **hatályos** önkormányzati rendeletek **hiteles
+  forrása** a Nemzeti Jogszabálytárból (`njt.jog.gov.hu`). A „csak hatályos"
+  szűrt listanézetet lapozza (szerver-renderelt HTML), és a rendeletoldal
+  §-tudatos szövegét nyeri ki (nem PDF) — visszalinkelve njt.hu-ra, nem újraközölve.
+  Az `options.authoritativeFor: ['rendeletek']` miatt sikeres betöltés után
+  **felülírja** (`superseded`) a többi forrás (pl. a vacratot.hu szkennelt)
+  `rendeletek` dokumentumait. **Megjegyzés:** az njt rate-limitel/blokkol; az
+  adapter udvarias késleltetéssel dolgozik, és a betöltés a deploy-környezetben
+  fut (a fejlesztői sandboxból az njt blokkolja a kéréseket).
 
 > **Figyelem:** a `reindex` a teljes `vacratot.hu` médiatárat (több száz PDF)
 > letölti és embeddeli — ez időigényes és OpenAI-költséggel jár. Fejlesztéshez a

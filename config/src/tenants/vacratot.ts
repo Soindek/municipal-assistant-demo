@@ -91,6 +91,19 @@ export const vacratot: DeepPartial<TenantConfig> = {
         defaultCategory: 'rendeletek',
       },
     },
+    // Authoritative, in-force decrees from the Nemzeti Jogszabálytár (njt.jog.gov.hu).
+    // listFilter encodes the settlement (473 = Vácrátót, 2 = Pest) AND the
+    // "csak hatályos" (in-force only) view, so revoked decrees are excluded.
+    // authoritativeFor: njt overrides vacratot.hu's scanned rendeletek (same category).
+    {
+      adapter: 'njt-onkormanyzati',
+      options: {
+        baseUrl: 'https://njt.jog.gov.hu',
+        listFilter: '-:-:-:-:1:-:-:1:-:-:2:473:-',
+        category: 'rendeletek',
+        authoritativeFor: ['rendeletek'],
+      },
+    },
     // Later: { adapter: 'google-drive', options: { folderId: '...' } }  // Glass pocket (transparency)
   ],
 
