@@ -33,9 +33,9 @@ const OptionsSchema = z.object({
   perPage: z.number().int().positive().max(50).default(50),
   requestTimeoutMs: z.number().int().positive().default(60000),
   /** Polite delay between requests (njt rate-limit). */
-  requestDelayMs: z.number().int().min(0).default(1200),
+  requestDelayMs: z.number().int().min(0).default(1500),
   /** Retry attempts per request on transient failures (timeout / 5xx). */
-  requestRetries: z.number().int().min(0).default(2),
+  requestRetries: z.number().int().min(0).default(4),
   /** Safety cap on pagination. */
   maxPages: z.number().int().positive().default(50),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
@@ -188,8 +188,10 @@ export function createNjtDecreesSource(options: Record<string, unknown>): Docume
         if (attempt >= opts.requestRetries || ctx.signal?.aborted) {
           throw new Error(`njt request failed (${url}): ${(err as Error).message}`);
         }
-        ctx.logger.warn(`njt retry ${attempt + 1}/${opts.requestRetries} (${url})`);
-        await delay(opts.requestDelayMs * (attempt + 2), ctx.signal);
+        // Exponential backoff (capped): give a rate-limited/overloaded njt room.
+        const backoff = Math.min(opts.requestDelayMs * 2 ** (attempt + 1), 30000);
+        ctx.logger.warn(`njt retry ${attempt + 1}/${opts.requestRetries} in ${backoff}ms (${url})`);
+        await delay(backoff, ctx.signal);
       }
     }
   };
