@@ -7,11 +7,9 @@ build/
 *.log
 .DS_Store
 
-# A feltöltési mappa tartalmát nem verziózzuk, de a mappát megtartjuk.
+# Don't version the uploads directory contents, but keep the directory.
 data/uploads/*
 !data/uploads/.gitkeep
 
-# Tesseract OCR cache (WASM core + letöltött nyelvi modell)
+# Tesseract OCR cache (WASM core + downloaded language model)
 data/ocr-cache/
-
-docs/njt*.*

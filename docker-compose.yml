@@ -1,5 +1,5 @@
-# Lokális fejlesztői Postgres + pgvector.
-# Indítás:  npm run db:up   (leállítás: npm run db:down)
+# Local development Postgres + pgvector.
+# Start:  npm run db:up   (stop: npm run db:down)
 services:
   postgres:
     image: pgvector/pgvector:pg16
