@@ -1,5 +1,10 @@
 # Önkormányzati Ügysegéd (`municipal-assistant`)
 
+> 📚 **Dokumentáció:** az alkalmazásról további leírások a [docs/](docs/) mappában
+> találhatók — [BRIEF.md](docs/BRIEF.md) (részletes specifikáció),
+> [ARCHITECTURE.md](docs/ARCHITECTURE.md) (felépítés + egy kérdés útja végig a kódon) és
+> [DECISIONS.md](docs/DECISIONS.md) (technikai/architekturális döntésnapló).
+
 Beágyazható chat-webalkalmazás, amely egy önkormányzat **hivatalos dokumentumai
 alapján**, forrásmegjelöléssel válaszol a lakosok kérdéseire. A háttérben RAG
 (retrieval-augmented generation) fut hibrid kereséssel (PostgreSQL + `pgvector`
@@ -9,16 +14,16 @@ A termék **bérlő-agnosztikus**; minden településspecifikus dolog két „va
 kerül: a `DocumentSource` adapter (forrás-felfedezés/letöltés) és a `TenantConfig`
 (arculat, források, RAG-paraméterek). Az **MVP bérlő: Vácrátót**.
 
-A részletes specifikáció: [docs/BRIEF.md](docs/BRIEF.md).
-
 ## Funkciók
 
 - **Hibrid keresés:** szemantikus (pgvector) + magyar full-text (GIN), RRF-fúzióval,
   enyhe **frissesség-súlyozással** (a hatályosabb dokumentum előrébb).
 - **Guardrailek:** `minScore` küszöb alatt „nem tudom" válasz, kötelező
   forrásmegjelölés, jogi disclaimer, IP-alapú rate limit, CORS + CSP `frame-ancestors`.
-- **Három forrás-adapter** (varrat #1): `manual-upload`, `wordpress-accordion`,
-  `njt-onkormanyzati` (hatályos rendeletek + mellékletek a Nemzeti Jogszabálytárból).
+- **Forrás-adapterek** (varrat #1): `manual-upload`, `dlp-library` (a vacratot.hu
+  kurált Document Library Pro listája) és `njt-decrees` (hatályos rendeletek +
+  mellékletek a Nemzeti Jogszabálytárból). A régi `wordpress-accordion` a registryben
+  marad, de a Vácrátót-config már a `dlp-library`-t használja.
 - **Szkennelt PDF → magyar OCR** (Tesseract/`tesseract.js`, lokális, nincs rendszerfüggőség).
 - **Tartalom-alapú kategorizálás** (a dokumentum szövegéből, nem a fájlnévből).
 - **Kérdésnaplózás** (`query_log`) minőségméréshez.
@@ -105,7 +110,7 @@ esemény a forrásokkal, majd `done`.
   heurisztikára sincs szükség (`trustCategory`). A szkennelt PDF-ek itt is OCR-t
   kapnak. (A régi `wordpress-accordion` adapter a registryben marad, de a Vácrátót
   config már a `dlp-library`-t használja.)
-- **`njt-onkormanyzati`** — a **hatályos** önkormányzati rendeletek **hiteles
+- **`njt-decrees`** — a **hatályos** önkormányzati rendeletek **hiteles
   forrása** a Nemzeti Jogszabálytárból (`njt.jog.gov.hu`). A „csak hatályos"
   szűrt listanézetet lapozza (szerver-renderelt HTML), és a rendeletoldal
   §-tudatos szövegét nyeri ki. A rendelet **melléklet-PDF-jeit** (díjtáblák,
