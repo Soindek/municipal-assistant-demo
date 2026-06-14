@@ -49,12 +49,15 @@ export async function run(): Promise<IngestStats> {
       // Per-source guard: one source failing (e.g. njt unreachable) must not
       // abort the others.
       try {
+        // Sources with curated categories (e.g. DLP folders) are authoritative;
+        // don't override them with the content-based categorizer.
+        const trustCategory = descriptor.options?.trustCategory === true;
         const stats = await ingestSource(source, {
           tenantId: config.tenantId,
           embedding,
           logger: consoleLogger,
           ocr,
-          categorize,
+          categorize: trustCategory ? undefined : categorize,
         });
         consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
         totals.processed += stats.processed;
