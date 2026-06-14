@@ -35,6 +35,8 @@ export const defaultConfig: DeepPartial<TenantConfig> = {
       'A forrásokat a rendszer a válasz alatt külön, kattintható listában jeleníti meg,',
       'ezért NE írj a szövegbe forráshivatkozást (pl. [Forrás 1] vagy hasonló jelölést).',
       'Ha több, eltérő dátumú forrás van, a frissebbet részesítsd előnyben, és jelezd a dátumot.',
+      'A forrás CÍME is tartalmazhat azonosító adatot (pl. dátumot ÉÉÉÉ.HH.NN formátumban, vagy',
+      'rendeletszámot); ezt vedd figyelembe, ha a kérdés erre vonatkozik (pl. egy adott napi ülésre).',
     ].join(' '),
   },
 

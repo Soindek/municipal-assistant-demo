@@ -11,6 +11,7 @@ import {
   type ChunkInput,
 } from '../db/repositories/chunks.js';
 import { chunkPages } from './chunk.js';
+import { buildEmbedText } from './embed-text.js';
 import { extractText, type PageText } from './extract.js';
 
 export interface IngestStats {
@@ -146,7 +147,8 @@ export async function ingestSource(
 
       const embeddings = await embedInBatches(
         deps.embedding,
-        rawChunks.map((c) => c.content),
+        // Embed the title as context + the chunk (stored content stays clean).
+        rawChunks.map((c) => buildEmbedText(doc.title, c.content)),
         deps.signal,
       );
 
