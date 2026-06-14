@@ -28,6 +28,8 @@ const OptionsSchema = z.object({
   categoryMap: z.record(z.string()).optional(),
   /** Category for folders not present in categoryMap. */
   defaultCategory: z.string().default('rendeletek'),
+  /** DLP folder names to skip (e.g. ones covered authoritatively by another source). */
+  excludeCategories: z.array(z.string()).default([]),
   requestTimeoutMs: z.number().int().positive().default(30000),
   requestDelayMs: z.number().int().min(0).default(800),
   userAgent: z.string().default('municipal-assistant/0.1 (+ingestion)'),
@@ -155,6 +157,10 @@ export function createDlpLibrarySource(options: Record<string, unknown>): Docume
       const seenDocs = new Set<string>();
       // 2) For each folder, fetch its full table and yield rows.
       for (const cat of cfg.categories) {
+        if (opts.excludeCategories.includes(cat.name)) {
+          ctx.logger.info(`dlp: skipping "${cat.name}" (excluded)`);
+          continue;
+        }
         const body = new URLSearchParams({
           action: 'dlp_fetch_table',
           _ajax_nonce: cfg.foldersNonce,

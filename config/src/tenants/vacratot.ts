@@ -99,6 +99,9 @@ export const vacratot: DeepPartial<TenantConfig> = {
           'Üvegzseb, szerződések': 'uvegzseb',
         },
         defaultCategory: 'egyeb',
+        // Decrees come authoritatively from njt-decrees (which supersedes these),
+        // so skip the DLP "Rendeletek" folder and don't waste OCR on it.
+        excludeCategories: ['Rendeletek'],
       },
     },
     // Authoritative, in-force decrees from the Nemzeti Jogszabálytár (njt.jog.gov.hu).
