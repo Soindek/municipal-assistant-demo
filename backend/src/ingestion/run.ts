@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { loadTenantConfig } from '@municipal-assistant/config';
 import { getEnv } from '../env.js';
 import { closePool } from '../db/pool.js';
+import { supersedeOtherSources } from '../db/repositories/documents.js';
 import { createLlmClients } from '../llm/index.js';
 import { consoleLogger } from '../logger.js';
 import { buildCategorizer } from './categorize.js';
@@ -45,19 +46,44 @@ export async function run(): Promise<IngestStats> {
     for (const descriptor of descriptors) {
       const source = createSource(descriptor);
       consoleLogger.info(`Source starting: ${source.name}`);
-      const stats = await ingestSource(source, {
-        tenantId: config.tenantId,
-        embedding,
-        logger: consoleLogger,
-        ocr,
-        categorize,
-      });
-      consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
-      totals.processed += stats.processed;
-      totals.ocred += stats.ocred;
-      totals.skipped += stats.skipped;
-      totals.scanned += stats.scanned;
-      totals.failed += stats.failed;
+      // Per-source guard: one source failing (e.g. njt unreachable) must not
+      // abort the others.
+      try {
+        const stats = await ingestSource(source, {
+          tenantId: config.tenantId,
+          embedding,
+          logger: consoleLogger,
+          ocr,
+          categorize,
+        });
+        consoleLogger.info(`Source done: ${source.name} → ${JSON.stringify(stats)}`);
+        totals.processed += stats.processed;
+        totals.ocred += stats.ocred;
+        totals.skipped += stats.skipped;
+        totals.scanned += stats.scanned;
+        totals.failed += stats.failed;
+
+        // Authoritative source: supersede other sources' docs in its categories
+        // (e.g. njt.hu in-force decrees override vacratot.hu scanned decrees).
+        // Only fires when this source actually ingested something this run.
+        const authoritativeFor = Array.isArray(descriptor.options?.authoritativeFor)
+          ? (descriptor.options.authoritativeFor as unknown[]).filter(
+              (x): x is string => typeof x === 'string',
+            )
+          : [];
+        if (stats.processed > 0 && authoritativeFor.length > 0) {
+          for (const category of authoritativeFor) {
+            const n = await supersedeOtherSources(category, source.name);
+            if (n > 0) {
+              consoleLogger.info(
+                `Superseded ${n} '${category}' doc(s) from other sources (authoritative: ${source.name}).`,
+              );
+            }
+          }
+        }
+      } catch (err) {
+        consoleLogger.error(`Source failed: ${source.name}: ${(err as Error).message}`);
+      }
     }
   } finally {
     await terminateOcr();

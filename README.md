@@ -11,14 +11,27 @@ kerül: a `DocumentSource` adapter (forrás-felfedezés/letöltés) és a `Tenan
 
 A részletes specifikáció: [docs/BRIEF.md](docs/BRIEF.md).
 
+## Funkciók
+
+- **Hibrid keresés:** szemantikus (pgvector) + magyar full-text (GIN), RRF-fúzióval,
+  enyhe **frissesség-súlyozással** (a hatályosabb dokumentum előrébb).
+- **Guardrailek:** `minScore` küszöb alatt „nem tudom" válasz, kötelező
+  forrásmegjelölés, jogi disclaimer, IP-alapú rate limit, CORS + CSP `frame-ancestors`.
+- **Három forrás-adapter** (varrat #1): `manual-upload`, `wordpress-accordion`,
+  `njt-onkormanyzati` (hatályos rendeletek + mellékletek a Nemzeti Jogszabálytárból).
+- **Szkennelt PDF → magyar OCR** (Tesseract/`tesseract.js`, lokális, nincs rendszerfüggőség).
+- **Tartalom-alapú kategorizálás** (a dokumentum szövegéből, nem a fájlnévből).
+- **Kérdésnaplózás** (`query_log`) minőségméréshez.
+- **SSE-streamelt válasz** + beágyazható Angular UI auto-magassággal.
+
 ## Monorepo felépítés (npm workspaces)
 
 ```
 municipal-assistant/
 ├─ shared/      # bérlő-agnosztikus típusok (DTO-k, DocumentSource, TenantConfig)
 ├─ config/      # config-betöltő + tenantok (varrat #2)  — config/tenants/vacratot.ts
-├─ backend/     # Express API, ingestion pipeline, DB, RAG
-└─ frontend/    # Angular chat UI (2. kör)
+├─ backend/     # Express API, ingestion pipeline, DB, RAG, OCR
+└─ frontend/    # Angular 21 chat UI (iframe-be ágyazható)
 ```
 
 ## Előfeltételek
@@ -89,10 +102,22 @@ esemény a forrásokkal, majd `done`.
   plugin kategória-taxonómiáját, így a kategóriát a címből próbáljuk kitalálni,
   különben a `defaultCategory`. Az `npm run reindex` ezt a forrást is feldolgozza
   (a teljes médiatárat — sok PDF, lehet közte szkennelt is, amihez OCR kell).
+- **`njt-onkormanyzati`** — a **hatályos** önkormányzati rendeletek **hiteles
+  forrása** a Nemzeti Jogszabálytárból (`njt.jog.gov.hu`). A „csak hatályos"
+  szűrt listanézetet lapozza (szerver-renderelt HTML), és a rendeletoldal
+  §-tudatos szövegét nyeri ki. A rendelet **melléklet-PDF-jeit** (díjtáblák,
+  költségvetés) is letölti és kinyeri/OCR-ezi (`includeAttachments`,
+  `ocrAttachments`). A forrást idézi + njt-re linkel vissza, nem közli újra.
+  Az `options.authoritativeFor: ['rendeletek']` miatt sikeres betöltés után
+  **felülírja** (`superseded`) a többi forrás (pl. a vacratot.hu szkennelt)
+  `rendeletek` dokumentumait. **Megjegyzés:** az njt rate-limitel; az adapter
+  udvarias késleltetéssel dolgozik. (Egyes hálózatokról az njt blokkolhatja az
+  automata kéréseket — a betöltés onnan fut, ahonnan az njt elérhető.)
 
-> **Figyelem:** a `reindex` a teljes `vacratot.hu` médiatárat (több száz PDF)
-> letölti és embeddeli — ez időigényes és OpenAI-költséggel jár. Fejlesztéshez a
-> `seed` (manual-upload) a gyors, olcsó út.
+> **Költség/idő:** az embedding (`text-embedding-3-small`) költsége elhanyagolható
+> (centek), az OCR lokális (ingyenes). A `reindex` fő „ára" az **idő**: sok PDF
+> udvarias késleltetéssel + OCR-rel akár több tíz perc. Fejlesztéshez a
+> `seed` (manual-upload) a gyors út.
 
 **Szkennelt PDF-ek (OCR):** ahol nincs kinyerhető szövegréteg (szkennelt kép),
 a pipeline a **Tesseract (magyar) OCR-t** futtatja (`tesseract.js` + PDF→PNG

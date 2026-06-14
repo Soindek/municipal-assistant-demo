@@ -13,3 +13,5 @@ data/uploads/*
 
 # Tesseract OCR cache (WASM core + letöltött nyelvi modell)
 data/ocr-cache/
+
+docs/njt*.*

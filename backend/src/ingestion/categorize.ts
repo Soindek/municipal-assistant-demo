@@ -2,8 +2,8 @@
  * Content-aware document categorization.
  *
  * The adapter can only guess a category from metadata (often a filename); the
- * extracted/OCR'd TEXT is a far better signal (e.g. "jegyzőkönyv", "önkormányzati
- * rendelete", "Helyi Választási Bizottság"). This refines the category from text.
+ * extracted/OCR'd TEXT is a far better signal (document-type phrases in the body).
+ * This refines the category from the document text.
  *
  * Tenant-agnostic: the matching keywords come from the tenant config —
  * `categoryKeywords` (ordered, domain-specific phrases) take priority, then a

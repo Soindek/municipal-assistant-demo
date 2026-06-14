@@ -35,7 +35,7 @@ export const vacratot: DeepPartial<TenantConfig> = {
   // Content keywords for categorizing a document from its (OCR'd) text.
   // Order = priority (first match wins). Strong document-TYPE signals come
   // first; generic topic words (kérelem, bejelentés) are avoided as they
-  // appear across many document types and would mis-grab real rendeletek.
+  // appear across many document types and would mis-grab real decrees.
   categoryKeywords: {
     jegyzokonyvek: ['jegyzőkönyv', 'jkv', 'képviselő-testület ülés'],
     hvb_hatarozatok: ['választási bizottság', 'helyi választási'],
@@ -89,6 +89,26 @@ export const vacratot: DeepPartial<TenantConfig> = {
           'Vácrátóti Hírmondó': 'hirmondo',
         },
         defaultCategory: 'rendeletek',
+      },
+    },
+    // Authoritative, in-force decrees from the Nemzeti Jogszabálytár (njt.jog.gov.hu).
+    // listFilter encodes the settlement (473 = Vácrátót, 2 = Pest) AND the
+    // in-force-only view, so revoked decrees are excluded.
+    // authoritativeFor: njt overrides vacratot.hu's scanned decrees (same 'rendeletek' category).
+    {
+      adapter: 'njt-decrees',
+      options: {
+        baseUrl: 'https://njt.jog.gov.hu',
+        listFilter: '-:-:-:-:1:-:-:1:-:-:2:473:-',
+        category: 'rendeletek',
+        authoritativeFor: ['rendeletek'],
+        // Include the decrees' reasoning ("indokolás") documents — citizens
+        // often ask about the rationale, not just the rule itself.
+        includeReasoning: true,
+        // njt rate-limits aggressively (HTTP 500 under bursts); be gentle.
+        // Failed docs aren't upserted, so simply re-running reindex retries
+        // only the missing ones (the done ones are skipped) until it converges.
+        requestDelayMs: 3000,
       },
     },
     // Later: { adapter: 'google-drive', options: { folderId: '...' } }  // Glass pocket (transparency)

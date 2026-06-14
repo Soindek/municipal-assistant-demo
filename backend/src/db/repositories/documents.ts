@@ -72,3 +72,23 @@ export async function upsertDocument(
   );
   return rows[0]!.id;
 }
+
+/**
+ * Marks other sources' active documents in a category as 'superseded', leaving
+ * the authoritative source's documents active. Used when a trusted source (e.g.
+ * njt.hu for in-force decrees) should take precedence over scanned copies in the
+ * same category. Returns how many rows were superseded.
+ */
+export async function supersedeOtherSources(
+  category: string,
+  keepSourceName: string,
+  pool: Pool = getPool(),
+): Promise<number> {
+  const res = await pool.query(
+    `UPDATE documents
+        SET status = 'superseded'
+      WHERE category = $1 AND source_name <> $2 AND status = 'active'`,
+    [category, keepSourceName],
+  );
+  return res.rowCount ?? 0;
+}
