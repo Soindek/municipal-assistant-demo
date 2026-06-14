@@ -14,6 +14,27 @@ export interface ExtractedDocument {
   likelyScanned: boolean;
 }
 
+/** Mime types we can extract text from (PDF text layer or plain text). */
+export function isSupportedMime(mimeType: string): boolean {
+  return mimeType === 'application/pdf' || mimeType.startsWith('text/');
+}
+
+/**
+ * Strip characters PostgreSQL's TEXT/tsvector cannot store: the NUL byte
+ * (code 0) and the other C0 control characters, keeping tab (9), LF (10) and
+ * CR (13). Some PDF text layers embed NUL bytes, which would otherwise fail the
+ * chunk insert with `invalid byte sequence for encoding "UTF8": 0x00`.
+ */
+export function sanitizeText(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 && code !== 9 && code !== 10 && code !== 13) continue;
+    out += text[i];
+  }
+  return out;
+}
+
 /** Per-page PDF text extraction using the pdfjs-dist legacy (Node) build. */
 async function extractPdf(bytes: Uint8Array): Promise<PageText[]> {
   // Dynamic import: pdfjs is ESM and only needs to be loaded during ingestion.

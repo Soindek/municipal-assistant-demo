@@ -12,7 +12,7 @@ import {
 } from '../db/repositories/chunks.js';
 import { chunkPages } from './chunk.js';
 import { buildEmbedText } from './embed-text.js';
-import { extractText, type PageText } from './extract.js';
+import { extractText, isSupportedMime, sanitizeText, type PageText } from './extract.js';
 
 export interface IngestStats {
   processed: number;
@@ -20,6 +20,8 @@ export interface IngestStats {
   ocred: number;
   skipped: number;
   scanned: number;
+  /** Fetched, but the file type can't be text-extracted (e.g. xlsx, CAD). */
+  unsupported: number;
   failed: number;
 }
 
@@ -67,7 +69,14 @@ export async function ingestSource(
   source: DocumentSource,
   deps: PipelineDeps,
 ): Promise<IngestStats> {
-  const stats: IngestStats = { processed: 0, ocred: 0, skipped: 0, scanned: 0, failed: 0 };
+  const stats: IngestStats = {
+    processed: 0,
+    ocred: 0,
+    skipped: 0,
+    scanned: 0,
+    unsupported: 0,
+    failed: 0,
+  };
   const ctx: DocumentSourceContext = {
     tenantId: deps.tenantId,
     logger: deps.logger,
@@ -92,6 +101,15 @@ export async function ingestSource(
       }
 
       const fetched = await source.fetch(doc, ctx);
+
+      // Skip file types we can't extract text from (spreadsheets, CAD, images
+      // that aren't PDFs). A deliberate, tracked skip rather than a hard error.
+      if (!isSupportedMime(fetched.mimeType)) {
+        deps.logger.warn(`Unsupported file type, skipping: ${doc.title} (${fetched.mimeType})`);
+        stats.unsupported++;
+        continue;
+      }
+
       const extracted = await extractText(fetched);
 
       // Common document metadata for upsert (status set per-branch below).
@@ -123,6 +141,11 @@ export async function ingestSource(
         pages = await deps.ocr(fetched.bytes);
         viaOcr = true;
       }
+
+      // Strip control/NUL bytes (from either the PDF text layer or OCR) before
+      // chunking, so the stored content and embeddings stay clean and the
+      // Postgres insert can't fail on an invalid byte sequence.
+      pages = pages.map((p) => ({ ...p, text: sanitizeText(p.text) }));
 
       const rawChunks = chunkPages(pages);
       if (rawChunks.length === 0) {
