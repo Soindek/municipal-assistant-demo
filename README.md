@@ -96,12 +96,15 @@ esemény a forrásokkal, majd `done`.
   Fájlonként opcionális `<fájlnév>.meta.json` (`title`, `category`, `sourceUrl`,
   `publishedAt`) felülírhatja a metaadatot. A leggyorsabb úton tesztelhető vele a
   teljes pipeline. Indítás: `npm run seed`.
-- **`wordpress-accordion`** — a `vacratot.hu/dokumentumok` (Document Library Pro)
-  PDF-jeit a WordPress REST `wp/v2/media` végpontról listázza, lapozással
-  (a tábla JS-rendered, ezért nem statikus scrape). **Korlát:** a REST nem adja a
-  plugin kategória-taxonómiáját, így a kategóriát a címből próbáljuk kitalálni,
-  különben a `defaultCategory`. Az `npm run reindex` ezt a forrást is feldolgozza
-  (a teljes médiatárat — sok PDF, lehet közte szkennelt is, amihez OCR kell).
+- **`dlp-library`** — a `vacratot.hu/dokumentumok` **kurált Document Library Pro**
+  listája (a kanonikus forrás). Az oldalról frissen kiolvasott nonce-szal hívja az
+  `admin-ajax.php` `dlp_fetch_table` végpontot **kategóriánként** (mappánként), és a
+  válasz teljes tábláját parse-olja (cím, fájl-URL, **valódi DLP-kategória**),
+  beleértve a **külső linkes** tételeket (pl. njt/Drive). Felváltja a régi
+  `wp/v2/media` megoldást: nincs médiakönyvtár-zaj, valódi kategóriák, és a
+  heurisztikára sincs szükség (`trustCategory`). A szkennelt PDF-ek itt is OCR-t
+  kapnak. (A régi `wordpress-accordion` adapter a registryben marad, de a Vácrátót
+  config már a `dlp-library`-t használja.)
 - **`njt-onkormanyzati`** — a **hatályos** önkormányzati rendeletek **hiteles
   forrása** a Nemzeti Jogszabálytárból (`njt.jog.gov.hu`). A „csak hatályos"
   szűrt listanézetet lapozza (szerver-renderelt HTML), és a rendeletoldal

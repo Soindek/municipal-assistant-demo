@@ -21,6 +21,7 @@ export const vacratot: DeepPartial<TenantConfig> = {
     allowedOrigins: ['https://vacratotikozosseg.hu'],
   },
 
+  // Taxonomy mirrors the curated Document Library Pro folders on vacratot.hu.
   categories: {
     rendeletek: 'Rendeletek',
     jegyzokonyvek: 'Jegyzőkönyvek',
@@ -30,6 +31,9 @@ export const vacratot: DeepPartial<TenantConfig> = {
     szerzodesek: 'Szerződések',
     telepulesrendezes: 'Településrendezési és szabályozási tervek',
     hirmondo: 'Vácrátóti Hírmondó',
+    bejelentes_koteles: 'Bejelentés-köteles kereskedelmi tevékenységek',
+    egyeb: 'Egyéb dokumentumok',
+    uvegzseb: 'Üvegzseb, szerződések',
   },
 
   // Content keywords for categorizing a document from its (OCR'd) text.
@@ -70,14 +74,17 @@ export const vacratot: DeepPartial<TenantConfig> = {
         defaultCategory: 'rendeletek',
       },
     },
-    // The vacratot.hu/dokumentumok source via the WordPress REST media endpoint
-    // (the Document Library Pro table is JS-rendered; see wordpress-accordion adapter).
+    // The CURATED Document Library Pro list on vacratot.hu/dokumentumok (the
+    // canonical source). Replaces the old wp/v2/media adapter: real DLP folders
+    // = real categories, external links included, no media-library noise.
+    // trustCategory: the folder IS the category, so don't re-categorize from text.
     {
-      adapter: 'wordpress-accordion',
+      adapter: 'dlp-library',
       options: {
-        baseUrl: 'https://vacratot.hu/dokumentumok/',
-        // We try to infer the category from the document title using these keywords;
-        // otherwise defaultCategory (the REST media does not provide the DLP category).
+        baseUrl: 'https://vacratot.hu',
+        documentsPath: '/dokumentumok/',
+        trustCategory: true,
+        // DLP folder name → category key.
         categoryMap: {
           Rendeletek: 'rendeletek',
           Jegyzőkönyvek: 'jegyzokonyvek',
@@ -87,8 +94,11 @@ export const vacratot: DeepPartial<TenantConfig> = {
           Szerződések: 'szerzodesek',
           'Településrendezési és szabályozási tervek': 'telepulesrendezes',
           'Vácrátóti Hírmondó': 'hirmondo',
+          'Bejelentés-köteles kereskedelmi tevékenységek': 'bejelentes_koteles',
+          'Egyéb dokumentumok': 'egyeb',
+          'Üvegzseb, szerződések': 'uvegzseb',
         },
-        defaultCategory: 'rendeletek',
+        defaultCategory: 'egyeb',
       },
     },
     // Authoritative, in-force decrees from the Nemzeti Jogszabálytár (njt.jog.gov.hu).
