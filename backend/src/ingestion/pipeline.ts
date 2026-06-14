@@ -128,12 +128,15 @@ export async function ingestSource(
       let pages = extracted.pages;
       let viaOcr = false;
       if (extracted.likelyScanned) {
-        if (!deps.ocr) {
+        // OCR only makes sense on actual PDF page images. For other types with
+        // no extractable text (a scanned PDF inside a zip, an empty Word doc),
+        // running OCR on the raw bytes would fail — mark needs_ocr instead.
+        if (!deps.ocr || fetched.mimeType !== 'application/pdf') {
           // No OCR available: mark needs_ocr (no chunks) so the corpus stays clean
           // but the doc is tracked and re-indexable once OCR is enabled.
           const documentId = await upsertDocument({ ...docFields, status: 'needs_ocr' });
           await deleteChunksForDocument(documentId);
-          deps.logger.warn(`Scanned, no extractable text — marked needs_ocr: ${doc.title}`);
+          deps.logger.warn(`No extractable text — marked needs_ocr: ${doc.title}`);
           stats.scanned++;
           continue;
         }
