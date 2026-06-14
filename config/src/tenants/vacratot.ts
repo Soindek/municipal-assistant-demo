@@ -128,7 +128,21 @@ export const vacratot: DeepPartial<TenantConfig> = {
         requestDelayMs: 3000,
       },
     },
-    // Later: { adapter: 'google-drive', options: { folderId: '...' } }  // Glass pocket (transparency)
+    // The "Üvegzseb" (glass pocket / transparency) portal on a public Google
+    // Drive folder. No API key needed — the public embeddedfolderview is scraped
+    // and files are downloaded via uc?export=download. The tree is traversed
+    // recursively. trustCategory: keep everything under 'uvegzseb' (the folder
+    // overlaps with DLP content — Hírmondó, Szerződések — so a separate category
+    // avoids muddling those; dedup can come later if needed).
+    {
+      adapter: 'google-drive',
+      options: {
+        folderId: '0B5p6_K4iMP2XeXZHcFVpY29FOTg',
+        resourceKey: '0--UYONBlz-qBSbijklhERoA',
+        category: 'uvegzseb',
+        trustCategory: true,
+      },
+    },
   ],
 
   rag: {
