@@ -219,7 +219,16 @@ export function createDlpLibrarySource(options: Record<string, unknown>): Docume
       });
       if (!res.ok) throw new Error(`dlp download failed (${res.status}): ${fileUrl}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
-      return { externalId: doc.externalId, bytes, mimeType: doc.mimeType };
+      // Prefer the server's Content-Type — it resolves extension-less file URLs
+      // that the URL guess maps to octet-stream (e.g. a PDF served without .pdf).
+      // Fall back to the URL-derived guess when the server is unhelpful.
+      const headerMime = (res.headers.get('content-type') ?? '')
+        .split(';')[0]!
+        .trim()
+        .toLowerCase();
+      const mimeType =
+        headerMime && headerMime !== 'application/octet-stream' ? headerMime : doc.mimeType;
+      return { externalId: doc.externalId, bytes, mimeType };
     },
   };
 }

@@ -24,7 +24,14 @@ export async function run(): Promise<IngestStats> {
   const filter = parseSourceFilter();
   const descriptors = config.sources.filter((s) => !filter || s.adapter === filter);
 
-  const totals: IngestStats = { processed: 0, ocred: 0, skipped: 0, scanned: 0, failed: 0 };
+  const totals: IngestStats = {
+    processed: 0,
+    ocred: 0,
+    skipped: 0,
+    scanned: 0,
+    unsupported: 0,
+    failed: 0,
+  };
   if (descriptors.length === 0) {
     consoleLogger.warn(
       `No sources to process (tenant=${config.tenantId}, filter=${filter ?? 'none'}).`,
@@ -64,6 +71,7 @@ export async function run(): Promise<IngestStats> {
         totals.ocred += stats.ocred;
         totals.skipped += stats.skipped;
         totals.scanned += stats.scanned;
+        totals.unsupported += stats.unsupported;
         totals.failed += stats.failed;
 
         // Authoritative source: supersede other sources' docs in its categories

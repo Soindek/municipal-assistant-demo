@@ -42,12 +42,36 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+/**
+ * Splits a single overlong line into pieces of at most `maxChars`, preferring a
+ * word boundary. PDF text extraction often emits a whole page as one newline-less
+ * line; without this, a single line could become a chunk that exceeds the
+ * embedding model's hard input limit (text-embedding-3-small: 8192 tokens).
+ */
+function splitLongLine(text: string, maxChars: number): string[] {
+  if (text.length <= maxChars) return [text];
+  const parts: string[] = [];
+  let rest = text;
+  while (rest.length > maxChars) {
+    let cut = rest.lastIndexOf(' ', maxChars);
+    if (cut < maxChars * 0.5) cut = maxChars; // no usable space → hard cut
+    parts.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) parts.push(rest);
+  return parts;
+}
+
 /** Core of the §-aware chunking. Accumulates lines up to the target size, with overlap. */
 export function chunkPages(pages: PageText[], opts: ChunkOptions = {}): RawChunk[] {
   const maxChars = opts.maxChars ?? 1500;
   const overlapChars = opts.overlapChars ?? 200;
 
-  const lines = toLines(pages);
+  // Expand any line longer than the target size so a single newline-less line
+  // can never produce an oversized chunk.
+  const lines = toLines(pages).flatMap((line) =>
+    splitLongLine(line.text, maxChars).map((text) => ({ text, pageNumber: line.pageNumber })),
+  );
   const chunks: RawChunk[] = [];
 
   let buffer = '';
