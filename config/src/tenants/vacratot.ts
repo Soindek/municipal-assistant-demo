@@ -115,6 +115,10 @@ export const vacratot: DeepPartial<TenantConfig> = {
         listFilter: '-:-:-:-:1:-:-:1:-:-:2:473:-',
         category: 'rendeletek',
         authoritativeFor: ['rendeletek'],
+        // Everything from njt IS a decree, so keep the 'rendeletek' category.
+        // Without this the content categorizer moves planning-related decrees
+        // (HÉSZ, szabályozási terv, változtatási tilalom) to 'telepulesrendezes'.
+        trustCategory: true,
         // Include the decrees' reasoning ("indokolás") documents — citizens
         // often ask about the rationale, not just the rule itself.
         includeReasoning: true,
