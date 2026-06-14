@@ -14,9 +14,20 @@ export interface ExtractedDocument {
   likelyScanned: boolean;
 }
 
-/** Mime types we can extract text from (PDF text layer or plain text). */
+const WORD_MIMES = new Set([
+  'application/msword', // legacy .doc
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+]);
+const ZIP_MIME = 'application/zip';
+
+/** Mime types we can extract text from (PDF, plain text, Word, or a zip of these). */
 export function isSupportedMime(mimeType: string): boolean {
-  return mimeType === 'application/pdf' || mimeType.startsWith('text/');
+  return (
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('text/') ||
+    WORD_MIMES.has(mimeType) ||
+    mimeType === ZIP_MIME
+  );
 }
 
 /**
@@ -63,8 +74,46 @@ async function extractPdf(bytes: Uint8Array): Promise<PageText[]> {
   return pages;
 }
 
+/** Text from a Word document (.doc or .docx) as a single page. */
+async function extractWord(bytes: Uint8Array): Promise<PageText[]> {
+  // Dynamic import: word-extractor (pure JS, no system deps) handles both the
+  // legacy OLE .doc format and the zipped .docx format.
+  const WordExtractor = (await import('word-extractor')).default;
+  const doc = await new WordExtractor().extract(Buffer.from(bytes));
+  const text = [doc.getBody(), doc.getFootnotes(), doc.getEndnotes()]
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  return [{ pageNumber: 1, text }];
+}
+
 /**
- * Per-page text from fetched content. Handles PDF and plain text.
+ * Text from a zip archive: extracts each contained PDF/text entry and
+ * concatenates them as consecutive pages. Other entry types (images, CAD) are
+ * ignored — if nothing text-bearing is found, the result is empty and the
+ * document is tracked as needs_ocr by the pipeline.
+ */
+async function extractZip(bytes: Uint8Array): Promise<PageText[]> {
+  const AdmZip = (await import('adm-zip')).default;
+  const zip = new AdmZip(Buffer.from(bytes));
+  const pages: PageText[] = [];
+  let pageNumber = 0;
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    const name = entry.entryName.toLowerCase();
+    if (name.endsWith('.pdf')) {
+      const inner = await extractPdf(new Uint8Array(entry.getData()));
+      for (const p of inner) pages.push({ pageNumber: ++pageNumber, text: p.text });
+    } else if (name.endsWith('.txt')) {
+      pages.push({ pageNumber: ++pageNumber, text: entry.getData().toString('utf-8').trim() });
+    }
+  }
+  return pages;
+}
+
+/**
+ * Per-page text from fetched content. Handles PDF, plain text, Word (.doc /
+ * .docx) and zip archives (extracting the PDF/text entries inside).
  *
  * When `likelyScanned` is true there is no usable text layer; the pipeline then
  * runs the OCR fallback (see ocr.ts) on the page images.
@@ -75,6 +124,10 @@ export async function extractText(content: FetchedContent): Promise<ExtractedDoc
     pages = await extractPdf(content.bytes);
   } else if (content.mimeType.startsWith('text/')) {
     pages = [{ pageNumber: 1, text: new TextDecoder('utf-8').decode(content.bytes).trim() }];
+  } else if (WORD_MIMES.has(content.mimeType)) {
+    pages = await extractWord(content.bytes);
+  } else if (content.mimeType === ZIP_MIME) {
+    pages = await extractZip(content.bytes);
   } else {
     throw new Error(`Unsupported mime type for text extraction: ${content.mimeType}`);
   }
