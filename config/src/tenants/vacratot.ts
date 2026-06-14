@@ -115,7 +115,7 @@ export const vacratot: DeepPartial<TenantConfig> = {
   ],
 
   rag: {
-    topK: 6,
+    topK: 8,
     minScore: 0.2,
     // Models (BRIEF point 2 + session decision): cheap models that perform well in Hungarian.
     embeddingModel: 'text-embedding-3-small',

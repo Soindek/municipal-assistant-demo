@@ -26,6 +26,7 @@
     "seed": "npm run seed -w @municipal-assistant/backend",
     "reindex": "npm run reindex -w @municipal-assistant/backend",
     "recategorize": "npm run recategorize -w @municipal-assistant/backend",
+    "reembed": "npm run reembed -w @municipal-assistant/backend",
     "dev": "npm run dev -w @municipal-assistant/backend",
     "dev:frontend": "npm run start -w frontend"
   },
