@@ -8,6 +8,7 @@ import { createGoogleDriveSource } from './sources/google-drive.js';
 import { createManualUploadSource } from './sources/manual-upload.js';
 import { createNjtDecreesSource } from './sources/njt-decrees.js';
 import { createWordpressAccordionSource } from './sources/wordpress-accordion.js';
+import { createWordpressPagesSource } from './sources/wordpress-pages.js';
 
 /**
  * Adapter registry: name → factory (BRIEF points 4/9). There is no plugin
@@ -19,6 +20,7 @@ const factories: Record<string, DocumentSourceFactory> = {
   'njt-decrees': createNjtDecreesSource,
   'dlp-library': createDlpLibrarySource,
   'google-drive': createGoogleDriveSource,
+  'wordpress-pages': createWordpressPagesSource,
 };
 
 export function registerAdapter(name: string, factory: DocumentSourceFactory): void {

@@ -34,6 +34,7 @@ export const vacratot: DeepPartial<TenantConfig> = {
     bejelentes_koteles: 'Bejelentés-köteles kereskedelmi tevékenységek',
     egyeb: 'Egyéb dokumentumok',
     uvegzseb: 'Üvegzseb, szerződések',
+    oldalak: 'Önkormányzati oldalak',
   },
 
   // Content keywords for categorizing a document from its (OCR'd) text.
@@ -140,6 +141,19 @@ export const vacratot: DeepPartial<TenantConfig> = {
         folderId: '0B5p6_K4iMP2XeXZHcFVpY29FOTg',
         resourceKey: '0--UYONBlz-qBSbijklhERoA',
         category: 'uvegzseb',
+        trustCategory: true,
+      },
+    },
+    // Static WordPress PAGES (office info, services) via the REST API — NOT
+    // posts (those are time-bound news). Cleaned to plain text; trivial pages
+    // (empty / document-list embeds) are filtered out. Category 'oldalak' keeps
+    // the source type visible and preserves the priority of authoritative
+    // sources (rendeletek, njt). trustCategory: always 'oldalak'.
+    {
+      adapter: 'wordpress-pages',
+      options: {
+        baseUrl: 'https://vacratot.hu',
+        category: 'oldalak',
         trustCategory: true,
       },
     },
