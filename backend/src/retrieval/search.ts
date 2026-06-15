@@ -22,6 +22,31 @@ function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.join(',')}]`;
 }
 
+/**
+ * Hungarian interrogatives / generic question words. `websearch_to_tsquery`
+ * ANDs every term, so leaving these in excludes fact-stating documents that
+ * never repeat the question word (e.g. a fee list answering "mennyi…?" doesn't
+ * contain "mennyi"). The 'hungarian' ts config already drops ordinary stopwords;
+ * this only removes the question framing so the content words drive the match.
+ */
+const LEXICAL_NOISE = new Set([
+  'mennyi', 'mennyibe', 'mennyit', 'hány', 'hányféle', 'hogyan', 'hogy', 'mikor', 'mettől',
+  'meddig', 'hol', 'hova', 'honnan', 'ki', 'kik', 'kit', 'mi', 'mit', 'mik', 'milyen', 'miért',
+  'melyik', 'mely', 'kell', 'lehet', 'van', 'vannak', 'szükséges', 'szeretném', 'szeretnék',
+]);
+
+/** Builds the full-text query text: strips question framing, keeps content words. */
+function toLexicalQuery(text: string): string {
+  const cleaned = text
+    .toLowerCase()
+    .replace(/[?!.,;:()"']/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !LEXICAL_NOISE.has(w))
+    .join(' ')
+    .trim();
+  return cleaned || text; // if everything was stripped, fall back to the original
+}
+
 // RRF constant (the value commonly used in the literature).
 const RRF_K = 60;
 
@@ -46,6 +71,7 @@ export async function hybridSearch(
   pool: Pool = getPool(),
 ): Promise<RetrievedChunk[]> {
   const vec = toVectorLiteral(queryEmbedding);
+  const lexicalQuery = toLexicalQuery(queryText);
   const perList = Math.max(topK * 4, 20);
 
   const { rows } = await pool.query<{
@@ -106,7 +132,7 @@ export async function hybridSearch(
     ORDER BY score DESC
     LIMIT $5
     `,
-    [vec, queryText, perList, RRF_K, topK, RECENCY_WEIGHT, RECENCY_HALFLIFE_DAYS],
+    [vec, lexicalQuery, perList, RRF_K, topK, RECENCY_WEIGHT, RECENCY_HALFLIFE_DAYS],
   );
 
   return rows.map((r) => ({
