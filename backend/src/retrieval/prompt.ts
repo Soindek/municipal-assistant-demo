@@ -19,14 +19,18 @@ export function buildContextBlock(chunks: RetrievedChunk[]): string {
     .join('\n\n');
 }
 
-/** The answer's sources for the UI; deduplicated by document + section. */
+/**
+ * The answer's sources for the UI, deduplicated by DOCUMENT (one entry per
+ * source URL, keeping the highest-ranked chunk's page/section). Listing every
+ * retrieved chunk would show the same document several times and cite passages
+ * the answer never used — see selectUsedChunks for the relevance filtering.
+ */
 export function buildSources(chunks: RetrievedChunk[]): Source[] {
   const seen = new Set<string>();
   const sources: Source[] = [];
   for (const c of chunks) {
-    const key = `${c.sourceUrl}#${c.sectionRef ?? ''}#${c.pageNumber ?? ''}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(c.sourceUrl)) continue;
+    seen.add(c.sourceUrl);
     sources.push({
       documentTitle: c.documentTitle,
       category: c.category,
@@ -36,6 +40,60 @@ export function buildSources(chunks: RetrievedChunk[]): Source[] {
     });
   }
   return sources;
+}
+
+/**
+ * Narrows the retrieved chunks to the ones the answer ACTUALLY relied on, via a
+ * cheap follow-up LLM call. Hybrid search returns topK chunks for context, but
+ * many are only tangentially related (e.g. newsletters that mention the topic);
+ * citing all of them is misleading. Falls back to all chunks if the model's
+ * reply can't be parsed, so the source list is never empty for a real answer.
+ */
+export async function selectUsedChunks(
+  chat: ChatClient,
+  answer: string,
+  chunks: RetrievedChunk[],
+  signal?: AbortSignal,
+): Promise<RetrievedChunk[]> {
+  if (chunks.length <= 1) return chunks;
+
+  const list = chunks
+    .map((c, i) => {
+      const meta = [c.documentTitle, c.sectionRef, c.pageNumber ? `${c.pageNumber}. o.` : null]
+        .filter(Boolean)
+        .join(', ');
+      return `[${i + 1}] (${meta})\n${c.content.slice(0, 500)}`;
+    })
+    .join('\n\n');
+
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        'Eldöntöd, mely számozott forrásrészletekre támaszkodik egy adott válasz. ' +
+        'Csak azoknak a forrásoknak a számát add vissza, amelyekből a válaszban szereplő ' +
+        'információ ténylegesen származik (a csak érintőlegesen kapcsolódókat hagyd ki). ' +
+        'A választ kizárólag vesszővel elválasztott számokként add meg (pl. "1, 3"). ' +
+        'Ha egyik forrás sem releváns, írd: "nincs".',
+    },
+    {
+      role: 'user',
+      content: `Válasz:\n${answer}\n\nForrásrészletek:\n${list}\n\nMely forrásokra támaszkodik a válasz?`,
+    },
+  ];
+
+  try {
+    const reply = (await chat.complete(messages, signal)).trim();
+    const picked = new Set(
+      [...reply.matchAll(/\d+/g)]
+        .map((m) => Number(m[0]))
+        .filter((n) => n >= 1 && n <= chunks.length),
+    );
+    if (picked.size === 0) return chunks; // unparseable / "nincs" → don't lose sources
+    return chunks.filter((_, i) => picked.has(i + 1));
+  } catch {
+    return chunks;
+  }
 }
 
 /** The final chat messages: system prompt + context + question. */
