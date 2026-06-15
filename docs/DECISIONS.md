@@ -230,6 +230,34 @@ megerősítésre vár — szándékosan nem találtunk ki indoklást.
   korai „nagy retrieval-megoldás" elfedte volna ezt, és rossz adaton hangoltunk volna.
 - **Alternatíva:** Egyből komplex reranker a tünetre — vakon, hibás adaton.
 - **Státusz:** Részben érvényes. A 11. pont (adat) **javítva**; a 2–3. réteg (pool-vágás,
-  filtered-KNN) **dedikált, tervezett körre** vár (filtered-KNN ef_search/exact +
-  query-kulcskifejezés→cím-egyezés vagy cross-encoder), friss main fölött, before/after
-  méréssel. A `feat/retrieval-rerank` PR addig nyitva marad.
+  filtered-KNN) a 13. pontban (retrieval-redesign) megoldva.
+
+---
+
+## 13. Retrieval-redesign: hiteles-shortlist (filtered-KNN + cím-egyezés) + LLM-rerank
+
+- **Döntés:** A lekérdezés két forrásból állít rerank-ablakot: (a) az általános hibrid
+  pool (`hybridSearch`, `categoryWeights`-szel + `ts_rank` hossz-normalizálással), és (b) egy
+  **garantált hiteles-shortlist** (`authoritativeShortlist`) a `rendeletek`/`oldalak`
+  kategóriákból. A kettő egyesített ablakát egy **tekintély-tudatos LLM-rerank**
+  (`rerankChunks`) szűri top-K-ra. A shortlist két ága: **filtered-KNN** megemelt
+  `hnsw.ef_search`-csel, és **kulcskifejezés→cím-egyezés** (`extractKeyphrase` → a hiteles
+  dokumentum címe ellen, csak valódi websearch-illeszkedésnél).
+- **Kontextus:** A 12. pont 2–3. rétege: a hiteles forrás kiesett a rerank-ablak előtt, és a
+  kategória-szűrt KNN éhezett a HNSW post-filter miatt.
+- **Miért:** A **garancia a BEHOZATALRA szól, nem a győzelemre** — a végső sorrendet a
+  jelentés-alapú rerank dönti, nem erőből nyomjuk fel a rendeleteket. A `hnsw.ef_search`
+  emelése azért kell, mert a HNSW globálisan adja a legközelebbieket, és a kategória-szűrés
+  utána fut (alapból ~0 hiteles jelölt marad). **Külön gyökérbug:** a config zod-séma korábban
+  **lestrippelte** az `authoritativeCategories`/`categoryWeights` mezőket (nem voltak a
+  sémában) — ezért tűntek hatástalannak; a sémába felvéve működnek.
+- **Alternatíva:** (a) Erőből a rendelet felülnyomása — sérti a „behozatal, nem győzelem"
+  elvet, rossz forrást adna a témán kívüli kérdéseknél. (b) Cross-encoder reranker — nehéz
+  függőség + memória/sebesség a kis VPS-en; csak akkor, ha e kettő nem elég (nem volt rá
+  szükség). Az injektálást a `hybridSearch`-ben elhagytuk (a shortlist váltja ki) — nincs két
+  átfedő megoldás.
+- **Státusz:** Érvényes. Before/after, mind a 6 kérdésen, valódi adaton: baseline-ben 4/6 a
+  top-20-ba sem került be; a redesign után mind a 6 hiteles forrás a top-8 kontextusban van,
+  a válaszok helyesek (kommunális 12.000 Ft, építmény 220 Ft/m², telek), a kontrollok nem
+  romlottak (ebtartás #1, tűzifa #3→#1, nagyterem —→#1). A `feat/retrieval-rerank` PR-t ez
+  kiváltja (lezárandó).

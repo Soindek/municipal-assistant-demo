@@ -162,6 +162,20 @@ export const vacratot: DeepPartial<TenantConfig> = {
   rag: {
     topK: 8,
     minScore: 0.2,
+    // In-force decrees and current info pages are the authoritative answers; a
+    // focused per-category search guarantees their best matches reach the rerank
+    // window (the archival corpus would otherwise crowd them out).
+    authoritativeCategories: ['rendeletek', 'oldalak'],
+    // Ranking nudge in the general pool: lift current/authoritative sources,
+    // damp the large archival corpus.
+    categoryWeights: {
+      oldalak: 1.6,
+      rendeletek: 1.5,
+      nyomtatvanyok: 1.2,
+      hirmondo: 0.75,
+      jegyzokonyvek: 0.85,
+      uvegzseb: 0.85,
+    },
     // Models (BRIEF point 2 + session decision): cheap models that perform well in Hungarian.
     embeddingModel: 'text-embedding-3-small',
     chatModel: 'gpt-4.1-mini',

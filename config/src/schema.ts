@@ -37,6 +37,8 @@ export const tenantConfigSchema = z.object({
     minScore: z.number().min(0).max(1),
     embeddingModel: z.string().min(1),
     chatModel: z.string().min(1),
+    authoritativeCategories: z.array(z.string()).optional(),
+    categoryWeights: z.record(z.number()).optional(),
     systemPromptTemplate: z.string().min(1),
   }),
 

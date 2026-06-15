@@ -43,6 +43,106 @@ export function buildSources(chunks: RetrievedChunk[]): Source[] {
 }
 
 /**
+ * Extracts the topic keyphrase from a question (e.g. "Mennyi a magánszemélyek
+ * kommunális adója?" → "kommunális adó"), for matching against authoritative
+ * document titles. Returns '' on failure (the caller then skips title matching).
+ */
+export async function extractKeyphrase(
+  chat: ChatClient,
+  question: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        'Egy önkormányzati kérdésből kivonod a fő TÉMÁT 1-4 szavas kifejezésként, ' +
+        'alanyesetben, ragok nélkül (pl. "kommunális adó", "építményadó", "nagyterem ' +
+        'bérleti díj"). Csak a kifejezést add vissza, semmi mást.',
+    },
+    { role: 'user', content: question },
+  ];
+  try {
+    return (await chat.complete(messages, signal)).trim().replace(/^["']|["']$/g, '');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Reranks a candidate pool by relevance with a cheap LLM call, returning the
+ * top `keep` chunks. Retrieval is good at RECALL (it pulls the right document
+ * into the pool) but weak at PRECISION ordering — a verbose newsletter can
+ * outrank the authoritative answer. The model reorders by genuine relevance and
+ * prefers authoritative/current sources. Falls back to the retrieval order.
+ */
+export async function rerankChunks(
+  chat: ChatClient,
+  query: string,
+  chunks: RetrievedChunk[],
+  keep: number,
+  signal?: AbortSignal,
+): Promise<RetrievedChunk[]> {
+  if (chunks.length <= keep) return chunks;
+
+  const list = chunks
+    .map((c, i) => {
+      const meta = [
+        c.documentTitle,
+        `kategória: ${c.category}`,
+        c.sectionRef,
+        c.pageNumber ? `${c.pageNumber}. o.` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      return `[${i + 1}] (${meta})\n${c.content.slice(0, 700)}`;
+    })
+    .join('\n\n');
+
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        'Egy keresési találatlistát rangsorolsz át relevancia szerint, hogy egy ' +
+        'önkormányzati kérdést a lehető leghitelesebben lehessen megválaszolni. ' +
+        'Add vissza a LEGRELEVÁNSABB források sorszámát, csökkenő relevancia ' +
+        'sorrendben, vesszővel elválasztva (pl. "3, 1, 7"). Két szabály: ' +
+        '(1) a kérdésre KÖZVETLEN, tényszerű választ (összeg, határidő, feltétel) ' +
+        'adó forrás előbbre való a témát csak érintőnél; ' +
+        '(2) ha több forrás is releváns, részesítsd előnyben a HIVATALOS, HATÁLYOS ' +
+        'forrásokat (kategória: rendeletek, oldalak) az archív/időhöz kötöttekkel ' +
+        '(hirmondo, jegyzokonyvek, uvegzseb, régi szerződések) szemben. ' +
+        'Csak számokat adj vissza, semmi mást.',
+    },
+    {
+      role: 'user',
+      content: `Kérdés: ${query}\n\nForrások:\n${list}\n\nA legrelevánsabbak sorszáma:`,
+    },
+  ];
+
+  try {
+    const reply = (await chat.complete(messages, signal)).trim();
+    const order = [...reply.matchAll(/\d+/g)]
+      .map((m) => Number(m[0]))
+      .filter((n) => n >= 1 && n <= chunks.length);
+    const seen = new Set<number>();
+    const ranked: RetrievedChunk[] = [];
+    for (const n of order) {
+      if (!seen.has(n)) {
+        seen.add(n);
+        ranked.push(chunks[n - 1]!);
+      }
+    }
+    chunks.forEach((c, i) => {
+      if (!seen.has(i + 1)) ranked.push(c);
+    });
+    return ranked.slice(0, keep);
+  } catch {
+    return chunks.slice(0, keep);
+  }
+}
+
+/**
  * Narrows the retrieved chunks to the ones the answer ACTUALLY relied on, via a
  * cheap follow-up LLM call. Hybrid search returns topK chunks for context, but
  * many are only tangentially related (e.g. newsletters that mention the topic);
