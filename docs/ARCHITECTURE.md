@@ -80,9 +80,13 @@ A frontend és a backend közös szerződése; nincs benne futtatható logika, c
       Vácrátót config már a `dlp-library`-t használja).
 - `src/retrieval/` — a keresés és a prompt összeállítása.
   - `search.ts` — `hybridSearch`: szemantikus (pgvector koszinusz) + magyar full-text
-    (GIN) RRF-fúzióval, enyhe frissesség-súlyozással; csak `status='active'`.
-  - `prompt.ts` — rendszerprompt, `[Forrás N]` kontextus-blokk, deduplikált `Source[]`,
-    és a követő-kérdés átírása (`rewriteFollowUp`).
+    (GIN, `ts_rank` hossz-norm) RRF-fúzióval, frissesség- és kategória-súllyal; csak
+    `status='active'`. `authoritativeShortlist`: garantált hiteles-jelölt (`rendeletek`/
+    `oldalak`) filtered-KNN-nel (emelt `hnsw.ef_search`) + cím-egyezéssel.
+  - `prompt.ts` — rendszerprompt, `[Forrás N]` kontextus-blokk, követő-kérdés átírás
+    (`rewriteFollowUp`), kulcskifejezés-kinyerés (`extractKeyphrase`), tekintély-tudatos
+    rerank (`rerankChunks`), a használt forrásokra szűrés (`selectUsedChunks`) + deduplikált
+    `Source[]` (`buildSources`).
 - `src/api/` — a HTTP réteg.
   - `app.ts` — `createApp(deps)`: middleware + route-ok összerakása.
   - `deps.ts` — `ApiDeps` (config + LLM-kliensek + env, egyszer felépítve induláskor).
@@ -165,21 +169,30 @@ szövegből) és `reembed.ts` (chunkok újra-embeddelése, ha az embedding-szöv
    (max hossz a `TenantConfig.limits`-ből); az IP-rate-limit a `middleware.ts`-ben fut.
 3. **Követő-kérdés átírása (`retrieval/prompt.ts` → `rewriteFollowUp`):** ha van
    beszélgetési előzmény, egy olcsó LLM-hívás önálló keresési kérdést gyárt belőle.
-4. **Beágyazás:** az `EmbeddingClient` a keresési kérdést vektorrá alakítja.
-5. **Hibrid keresés (`retrieval/search.ts` → `hybridSearch`):** a pgvector (koszinusz)
-   és a magyar full-text (GIN) találatait RRF-fel egyesíti, enyhe frissesség-súlyozással,
-   és visszaadja a top-K `active` chunkot (forrás-metaadattal együtt).
-6. **Guardrail (`handlers.ts`):** ha nincs találat, vagy a legjobb koszinusz-hasonlóság
-   a `minScore` alatt van → kész „nem tudom" válasz (üres források), és vége.
-7. **Prompt-összeállítás (`prompt.ts` → `buildAnswerMessages`):** rendszerprompt
-   (hallucináció-tiltás, idézési szabály) + a számozott `[Forrás N]` kontextus-blokk +
-   a kérdés.
-8. **Válasz streamelése (`llm` → `streamChat`):** az LLM tokenjeit a `sse.ts`
-   `token` eseményekként küldi a kliensnek.
-9. **Források (`prompt.ts` → `buildSources`):** a végén egy `sources` esemény a
-   deduplikált, kattintható forrásokkal, majd `done`.
-10. **Naplózás:** a kérdés/átírt kérdés/válasz/talált chunkok a `query_log`-ba (best-effort).
-11. **Megjelenítés (frontend):** a tokenek folyamatos szöveggé állnak össze, alattuk a
+4. **Beágyazás + kulcskifejezés:** az `EmbeddingClient` a keresési kérdést vektorrá
+   alakítja; párhuzamosan egy olcsó LLM-hívás (`prompt.ts` → `extractKeyphrase`) kivonja a
+   kérdés témáját (pl. „kommunális adó") a hiteles cím-egyezéshez.
+5. **Jelölt-keresés (két forrás → rerank-ablak):**
+   - **általános hibrid pool** (`retrieval/search.ts` → `hybridSearch`): pgvector (koszinusz)
+     + magyar full-text (GIN) RRF-fúzióval, frissesség- és **kategória-súllyal**,
+     `ts_rank` hossz-normalizálással;
+   - **garantált hiteles-shortlist** (`search.ts` → `authoritativeShortlist`): a
+     `rag.authoritativeCategories` (`rendeletek`/`oldalak`) közül **filtered-KNN** megemelt
+     `hnsw.ef_search`-csel + **kulcskifejezés→cím-egyezés** (csak valódi illeszkedésnél).
+   A kettőt a handler **egyesíti** (dedup) — ez a rerank-ablak.
+6. **Guardrail (`handlers.ts`):** ha az ablak legjobb koszinusz-hasonlósága a `minScore`
+   alatt van (vagy üres) → kész „nem tudom" válasz, és vége.
+7. **Rerank (`prompt.ts` → `rerankChunks`):** tekintély-tudatos LLM-rerank az ablakot
+   relevancia szerint **top-K**-ra szűri. A garancia a hiteles forrás *behozatalára* szól,
+   a végső sorrendet a rerank dönti.
+8. **Prompt-összeállítás (`prompt.ts` → `buildAnswerMessages`):** rendszerprompt
+   (hallucináció-tiltás, idézési szabály) + a számozott `[Forrás N]` kontextus-blokk + a kérdés.
+9. **Válasz streamelése (`llm` → `streamChat`):** az LLM tokenjeit a `sse.ts`
+   `token` eseményekként küldi.
+10. **Idézés + források:** `prompt.ts` → `selectUsedChunks` a ténylegesen használt
+    forrásokra szűr, `buildSources` dokumentumonként deduplikál → `sources` esemény, majd `done`.
+11. **Naplózás:** a kérdés/átírt kérdés/válasz/talált chunkok a `query_log`-ba (best-effort).
+12. **Megjelenítés (frontend):** a tokenek folyamatos szöveggé állnak össze, alattuk a
     források és a jogi disclaimer. (Az esetleges maradék `[Forrás N]` jelölést a frontend letakarítja.)
 
 ## Egy kérdés útja — „mennyi a kommunális adó?"
@@ -209,47 +222,50 @@ Kövessük végig konkrétan, mi történik, amikor a felhasználó beírja a ch
    üres `history`-nál visszaadja a kérdést változatlanul. (Ha pl. korábban a
    kommunális adóról kérdezett volna, és most azt írná, hogy „és mikor kell fizetni?",
    itt egy olcsó LLM-hívás csinálna belőle önálló keresési kérdést.)
-6. **Beágyazás.** A handler az `EmbeddingClient.embed(["mennyi a kommunális adó?"])`-t
-   hívja (`backend/src/llm/openai.ts`, `text-embedding-3-small`) → egy 1536 dimenziós
-   kérdés-vektor.
-7. **Hibrid keresés.** A `hybridSearch` (`backend/src/retrieval/search.ts`) egyetlen
-   SQL-lel két találati listát állít elő: a **szemantikus** (a `chunks.embedding`
-   koszinusz-közelsége a kérdés-vektorhoz, HNSW indexszel) és a **magyar full-text**
-   (`websearch_to_tsquery('hungarian', 'mennyi a kommunális adó?')` a `chunks.tsv`-n,
-   GIN indexszel). A kettőt **RRF**-fel egyesíti, enyhe **frissesség-súlyozással**, és
-   visszaadja a legjobb `topK` (8) **`active`** chunkot — köztük a *helyi adókról /
-   kommunális adóról* szóló rendelet darabját, a dokumentum metaadatával (cím,
-   `source_url`, `section_ref`, oldal, hasonlóság). A rendelet a hiteles `njt-decrees`
-   forrásból jön (a szkennelt vacratot.hu-másolatot a supersede kiváltotta).
-8. **Guardrail.** Ha nincs találat, vagy a legjobb koszinusz-hasonlóság a
-   `TenantConfig.rag.minScore` (0.2) alatt van, a handler egy kész „ezt nem találom a
-   dokumentumokban…" választ stream-el és lezár. A kommunális adó kérdésnél van jó
-   találat, úgyhogy megy tovább.
-9. **A prompt összeáll.** A `buildAnswerMessages` (`prompt.ts`) felépíti az
+6. **Beágyazás + kulcskifejezés.** A handler párhuzamosan futtatja az
+   `EmbeddingClient.embed(["mennyi a kommunális adó?"])`-t (`llm/openai.ts`,
+   `text-embedding-3-small` → 1536 dimenziós vektor) és az `extractKeyphrase`-t
+   (`prompt.ts`) — utóbbi kivonja a témát: „kommunális adó".
+7. **Jelölt-keresés (két forrás → rerank-ablak).** (a) `hybridSearch`
+   (`retrieval/search.ts`): a **szemantikus** (`chunks.embedding` koszinusz, HNSW) és a
+   **magyar full-text** (`chunks.tsv`, GIN, `ts_rank` hossz-normalizálással) listák **RRF**-
+   fúziója, frissesség- és **kategória-súllyal** → általános pool. (b) `authoritativeShortlist`
+   (`search.ts`): a `rendeletek`/`oldalak` közül **filtered-KNN** megemelt `hnsw.ef_search`-csel
+   (a HNSW post-filter éhezés ellen) + **cím-egyezés** a „kommunális adó" kulcskifejezésre →
+   ez garantálja, hogy a hiteles *kommunális adóról* szóló njt-rendelet bekerüljön. A kettőt a
+   handler egyesíti (dedup) — ez a rerank-ablak.
+8. **Guardrail.** Ha az ablak legjobb koszinusz-hasonlósága a `rag.minScore` (0.2) alatt van
+   (vagy üres) → kész „ezt nem találom a dokumentumokban…" válasz, és vége. Itt van jó
+   találat, megy tovább.
+9. **Rerank.** A `rerankChunks` (`prompt.ts`) tekintély-tudatos LLM-rerankja az ablakot
+   relevancia szerint **top-K** (8) chunkra szűri (a hiteles rendelet behozatala garantált, a
+   sorrendet a rerank dönti).
+10. **A prompt összeáll.** A `buildAnswerMessages` (`prompt.ts`) felépíti az
    üzeneteket: a **rendszerprompt** (a `TenantConfig.rag.systemPromptTemplate`-ből, a
    `{displayName}` behelyettesítve — tartalmazza a „kizárólag a forrásokból válaszolj"
    és az idézési szabályt), majd egy felhasználói üzenet, amelyben a `buildContextBlock`
    a találatokat számozott **`[Forrás N]`** blokkokká fűzi (cím, `§`, oldal +
    chunk-szöveg), végül maga a kérdés.
-10. **LLM-hívás, streamelve.** A handler a `ChatClient.streamChat(messages, onToken)`-t
+11. **LLM-hívás, streamelve.** A handler a `ChatClient.streamChat(messages, onToken)`-t
     hívja (`backend/src/llm/openai.ts`, `gpt-4.1-mini`). Ahogy érkeznek a tokenek, a
     `sse.ts` `sendEvent`-je `{type:'token', text}` eseményként küldi őket a kliensnek —
     pl. „A kommunális adó mértéke … 12.000 Ft évente …".
-11. **Források + lezárás.** A stream végén a `buildSources` (`prompt.ts`) a használt
-    chunkokból deduplikált `Source[]`-t készít (cím, kategória, `source_url`, oldal,
-    `§`), ezt egy `{type:'sources'}` esemény viszi, majd egy `{type:'done'}`, és a
-    handler lezárja a választ.
-12. **Naplózás.** A `logQuery` (`handlers.ts`) tűzd-és-felejtsd módon a `query_log`-ba
+12. **Idézés + források + lezárás.** A `selectUsedChunks` (`prompt.ts`) a válasz alapján
+    leszűri a ténylegesen használt chunkokra, majd a `buildSources` dokumentumonként
+    deduplikált `Source[]`-t készít (cím, kategória, `source_url`, oldal, `§`) → `{type:'sources'}`,
+    majd `{type:'done'}`.
+13. **Naplózás.** A `logQuery` (`handlers.ts`) tűzd-és-felejtsd módon a `query_log`-ba
     írja a kérdést, az átírt kérdést, a választ és a talált chunk-id-kat.
-13. **Megjelenítés (frontend).** Az `App.send()` ciklusa fogyasztja az eseményeket: a
+14. **Megjelenítés (frontend).** Az `App.send()` ciklusa fogyasztja az eseményeket: a
     `token`-eket a `assistant.text` signalhoz fűzi (élő gépelés-érzet), a `sources`-t a
     buborék alá teszi kattintható linkként, a `done`-nál véglegesít. A felhasználó a
     folyamatos választ látja, alatta a **forrást** (a kommunális adó rendelet,
     `njt.jog.gov.hu/jogszabaly/…` linkkel) és a jogi disclaimert.
 
 Röviden: `app.ts` → `api.ts` → `api/app.ts` → `handlers.ts` → (`prompt.rewriteFollowUp`)
-→ `llm.embed` → `search.hybridSearch` → `prompt.buildAnswerMessages` → `llm.streamChat`
-→ `prompt.buildSources` → SSE → vissza a `app.ts`-be.
+→ `llm.embed` + `prompt.extractKeyphrase` → `search.hybridSearch` + `search.authoritativeShortlist`
+→ (egyesített ablak) → `prompt.rerankChunks` → `prompt.buildAnswerMessages` → `llm.streamChat`
+→ `prompt.selectUsedChunks` + `prompt.buildSources` → SSE → vissza a `app.ts`-be.
 
 ## Keresztmetsző elvek
 
