@@ -6,12 +6,14 @@
 
 ## Aktuális állapot (2026-06-15)
 
-- **Branch:** `feat/retrieval-redesign` (main-ről ágaztatva), commit `2fcf909`, pusholva.
-- **Állapot:** a terv jóváhagyva, az implementáció **kész**, és az **after-mérés megtörtént**
-  (mind a 6 kérdés, valódi adaton — lásd a táblát lent). Typecheck + lint zöld.
-- **PR:** nyitva, **mergelésre kész** (a kritérium teljesül). A `feat/retrieval-rerank` PR-t
-  ez **kiváltja → lezárandó** (ne mergeld, különben két átfedő rerank-megoldás lenne).
-- **Függőség:** a méréshez kellett az njt-törzs adat-fix (DECISIONS #11), ami már a main-en van.
+- **Mergelve:** a redesign a **main-en** van — PR **#17** (`feat/retrieval-redesign`,
+  kód-commit `2fcf909`). Az after-mérés megtörtént (mind a 6 kérdés, valódi adaton — lásd a
+  táblát lent), typecheck + lint zöld, a kontrollok nem romlottak.
+- **Lezárandó:** a `feat/retrieval-rerank` PR-t ez **kiváltja** — zárd le mergelés nélkül
+  (különben két átfedő rerank-megoldás lenne).
+- **Függőség:** a méréshez kellett az njt-törzs adat-fix (DECISIONS #11), szintén main-en.
+- **Megjegyzés:** ezt a notes-fájlt a redesign merge UTÁN, közvetlenül a main-re commitoltam
+  (eljárási csúszás a „branch + PR" folyamathoz képest); a tartalom a mainnel konzisztens.
 
 ## A választott megközelítés (röviden)
 
