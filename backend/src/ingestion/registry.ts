@@ -4,6 +4,7 @@ import type {
   SourceDescriptor,
 } from '@municipal-assistant/shared';
 import { createDlpLibrarySource } from './sources/dlp-library.js';
+import { createGoogleDriveSource } from './sources/google-drive.js';
 import { createManualUploadSource } from './sources/manual-upload.js';
 import { createNjtDecreesSource } from './sources/njt-decrees.js';
 import { createWordpressAccordionSource } from './sources/wordpress-accordion.js';
@@ -17,6 +18,7 @@ const factories: Record<string, DocumentSourceFactory> = {
   'wordpress-accordion': createWordpressAccordionSource,
   'njt-decrees': createNjtDecreesSource,
   'dlp-library': createDlpLibrarySource,
+  'google-drive': createGoogleDriveSource,
 };
 
 export function registerAdapter(name: string, factory: DocumentSourceFactory): void {
