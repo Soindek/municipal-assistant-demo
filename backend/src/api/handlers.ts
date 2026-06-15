@@ -7,16 +7,33 @@ import { consoleLogger } from '../logger.js';
 import {
   buildAnswerMessages,
   buildSources,
+  extractKeyphrase,
+  rerankChunks,
   rewriteFollowUp,
   selectUsedChunks,
 } from '../retrieval/prompt.js';
-import { hybridSearch } from '../retrieval/search.js';
+import { authoritativeShortlist, hybridSearch } from '../retrieval/search.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
 
 /** Fallback answer when retrieval finds nothing good enough (BRIEF point 8). */
 const NO_ANSWER =
   'Sajnálom, ezt nem találom a rendelkezésre álló hivatalos dokumentumokban. Javaslom, forduljon közvetlenül a hivatalhoz.';
+
+/** Candidate pool size retrieved before the LLM rerank narrows it to topK. */
+const RERANK_POOL = 18;
+/** Authoritative-category candidates guaranteed into the rerank window. */
+const AUTH_SHORTLIST = 6;
+
+/** Keeps the first occurrence of each chunk, preserving order. */
+function dedupeByChunkId<T extends { chunkId: string }>(chunks: T[]): T[] {
+  const seen = new Set<string>();
+  return chunks.filter((c) => {
+    if (seen.has(c.chunkId)) return false;
+    seen.add(c.chunkId);
+    return true;
+  });
+}
 
 /** Fire-and-forget query logging; never breaks the response on failure. */
 function logQuery(entry: QueryLogInput): void {
@@ -100,16 +117,30 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
       // 1) Follow-up question → standalone search query.
       const searchQuery = await rewriteFollowUp(llm.chat, history, question, ac.signal);
 
-      // 2) Embedding + hybrid search.
-      const embeddings = await llm.embedding.embed([searchQuery], ac.signal);
+      // 2) Embedding + topic keyphrase (for authoritative title matching).
+      const [embeddings, keyphrase] = await Promise.all([
+        llm.embedding.embed([searchQuery], ac.signal),
+        extractKeyphrase(llm.chat, searchQuery, ac.signal),
+      ]);
       const queryEmbedding = embeddings[0];
       if (!queryEmbedding) throw new Error('Failed to embed the question.');
 
-      const chunks = await hybridSearch(queryEmbedding, searchQuery, config.rag.topK);
-      const bestSimilarity = chunks[0]?.similarity ?? 0;
+      // General pool + a guaranteed authoritative shortlist, merged into the
+      // rerank window (the shortlist keeps a concise in-force document from being
+      // crowded out before the rerank can weigh it).
+      const authCategories = config.rag.authoritativeCategories ?? [];
+      const [pool, shortlist] = await Promise.all([
+        hybridSearch(queryEmbedding, searchQuery, RERANK_POOL, config.rag.categoryWeights),
+        authCategories.length
+          ? authoritativeShortlist(queryEmbedding, keyphrase, authCategories, AUTH_SHORTLIST)
+          : Promise.resolve([]),
+      ]);
+      const windowChunks = dedupeByChunkId([...shortlist, ...pool]);
+      // Best semantic match across the window (used for the guardrail).
+      const bestSimilarity = windowChunks.reduce((m, c) => Math.max(m, c.similarity), 0);
 
       // 3) Guardrail: no good-enough match → "I don't know" (BRIEF point 8).
-      if (chunks.length === 0 || bestSimilarity < config.rag.minScore) {
+      if (windowChunks.length === 0 || bestSimilarity < config.rag.minScore) {
         sendEvent(res, { type: 'token', text: NO_ANSWER });
         sendEvent(res, { type: 'sources', sources: [] });
         sendEvent(res, { type: 'done' });
@@ -123,7 +154,8 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
         return;
       }
 
-      // 4) Stream the answer + the sources at the end.
+      // 4) Rerank the window down to topK by relevance, then stream the answer.
+      const chunks = await rerankChunks(llm.chat, searchQuery, windowChunks, config.rag.topK, ac.signal);
       const messages = buildAnswerMessages(config, question, chunks);
       const answer = await llm.chat.streamChat(
         messages,

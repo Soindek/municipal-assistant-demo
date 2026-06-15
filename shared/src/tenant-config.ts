@@ -55,6 +55,19 @@ export interface TenantConfig {
     embeddingModel: string;
     chatModel: string;
     /**
+     * Categories whose documents are authoritative/current (e.g. in-force
+     * decrees, info pages). A focused per-category search guarantees their best
+     * matches reach the rerank window, so a concise authoritative document isn't
+     * crowded out of the global pool. Empty/undefined disables the guarantee.
+     */
+    authoritativeCategories?: string[];
+    /**
+     * Optional per-category ranking multiplier (category key → weight, default
+     * 1.0). Nudges authoritative/current sources up and archival/time-bound ones
+     * down in the candidate pool ordering.
+     */
+    categoryWeights?: Record<string, number>;
+    /**
      * System prompt template. Tokens to substitute, e.g. {displayName}.
      * Includes the out-of-context answer ban and the citation rule.
      */
