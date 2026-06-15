@@ -4,7 +4,12 @@ import { getPool } from '../db/pool.js';
 import { insertQueryLog, type QueryLogInput } from '../db/repositories/query-log.js';
 import { run } from '../ingestion/run.js';
 import { consoleLogger } from '../logger.js';
-import { buildAnswerMessages, buildSources, rewriteFollowUp } from '../retrieval/prompt.js';
+import {
+  buildAnswerMessages,
+  buildSources,
+  rewriteFollowUp,
+  selectUsedChunks,
+} from '../retrieval/prompt.js';
 import { hybridSearch } from '../retrieval/search.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
@@ -125,7 +130,9 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
         (text) => sendEvent(res, { type: 'token', text }),
         ac.signal,
       );
-      sendEvent(res, { type: 'sources', sources: buildSources(chunks) });
+      // Cite only the sources the answer actually used (deduped by document).
+      const usedChunks = await selectUsedChunks(llm.chat, answer, chunks, ac.signal);
+      sendEvent(res, { type: 'sources', sources: buildSources(usedChunks) });
       sendEvent(res, { type: 'done' });
       res.end();
       logQuery({
