@@ -1,90 +1,101 @@
-# Önkormányzati Ügysegéd (`municipal-assistant`)
+> **English** · [Magyar](README.hu.md)
 
-> 📚 **Dokumentáció:** az alkalmazásról további leírások a [docs/](docs/) mappában
-> találhatók — [BRIEF.md](docs/BRIEF.md) (részletes specifikáció),
-> [ARCHITECTURE.md](docs/ARCHITECTURE.md) (felépítés + egy kérdés útja végig a kódon) és
-> [DECISIONS.md](docs/DECISIONS.md) (technikai/architekturális döntésnapló).
+# Municipal Assistant (`municipal-assistant`)
 
-Beágyazható chat-webalkalmazás, amely egy önkormányzat **hivatalos dokumentumai
-alapján**, forrásmegjelöléssel válaszol a lakosok kérdéseire. A háttérben RAG
-(retrieval-augmented generation) fut hibrid kereséssel (PostgreSQL + `pgvector`
-szemantikus + magyar full-text).
+> **About this project.** A production-shaped, Hungarian-language RAG assistant built
+> end-to-end as an **AI-augmented delivery**: it answers residents' questions **strictly
+> from a municipality's official documents**, with source citation and an "I don't know"
+> guardrail. The substance is in the source adapters (reverse-engineered WordPress Document
+> Library Pro admin-ajax, the National Legislation Database, a public Google Drive),
+> Hungarian OCR for scanned minutes, and a hybrid + reranked retrieval pipeline tuned with
+> measured before/after evidence. The engineering judgment is documented as it happened —
+> see **[docs/DECISIONS.md](docs/DECISIONS.md)** (ADR-lite, incl. trade-offs and known
+> limitations), **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** (design + the journey of a
+> question through the code), and **[docs/RETRIEVAL_NOTES.md](docs/RETRIEVAL_NOTES.md)**
+> (before/after retrieval measurements). The specification is in
+> [docs/BRIEF.md](docs/BRIEF.md); the commit history reflects a small-step, PR-reviewed,
+> AI-paired workflow.
 
-A termék **bérlő-agnosztikus**; minden településspecifikus dolog két „varrat" mögé
-kerül: a `DocumentSource` adapter (forrás-felfedezés/letöltés) és a `TenantConfig`
-(arculat, források, RAG-paraméterek). Az **MVP bérlő: Vácrátót**.
+An embeddable chat web application that answers residents' questions **based on a
+municipality's official documents**, with source attribution. Under the hood it runs RAG
+(retrieval-augmented generation) with hybrid search (PostgreSQL + `pgvector`
+semantic + Hungarian full-text).
 
-## Funkciók
+The product is **tenant-agnostic**; everything municipality-specific sits behind two "seams":
+the `DocumentSource` adapter (source discovery/download) and the `TenantConfig`
+(branding, sources, RAG parameters). The **MVP tenant: Vácrátót**.
 
-- **Hibrid keresés:** szemantikus (pgvector) + magyar full-text (GIN), RRF-fúzióval,
-  enyhe **frissesség-súlyozással** (a hatályosabb dokumentum előrébb).
-- **Guardrailek:** `minScore` küszöb alatt „nem tudom" válasz, kötelező
-  forrásmegjelölés, jogi disclaimer, IP-alapú rate limit, CORS + CSP `frame-ancestors`.
-- **Forrás-adapterek** (varrat #1): `manual-upload`, `dlp-library` (a vacratot.hu
-  kurált Document Library Pro listája) és `njt-decrees` (hatályos rendeletek +
-  mellékletek a Nemzeti Jogszabálytárból). A régi `wordpress-accordion` a registryben
-  marad, de a Vácrátót-config már a `dlp-library`-t használja.
-- **Szkennelt PDF → magyar OCR** (Tesseract/`tesseract.js`, lokális, nincs rendszerfüggőség).
-- **Tartalom-alapú kategorizálás** (a dokumentum szövegéből, nem a fájlnévből).
-- **Kérdésnaplózás** (`query_log`) minőségméréshez.
-- **SSE-streamelt válasz** + beágyazható Angular UI auto-magassággal.
+## Features
 
-## Monorepo felépítés (npm workspaces)
+- **Hybrid search:** semantic (pgvector) + Hungarian full-text (GIN), with RRF fusion,
+  with a slight **freshness weighting** (the more current document ranks higher).
+- **Guardrails:** below the `minScore` threshold an "I don't know" answer, mandatory
+  source attribution, legal disclaimer, IP-based rate limit, CORS + CSP `frame-ancestors`.
+- **Source adapters** (seam #1): `manual-upload`, `dlp-library` (the vacratot.hu
+  curated Document Library Pro listing) and `njt-decrees` (in-force decrees +
+  attachments from the National Legislation Database). The old `wordpress-accordion` remains in the registry,
+  but the Vácrátót config now uses `dlp-library`.
+- **Scanned PDF → Hungarian OCR** (Tesseract/`tesseract.js`, local, no system dependency).
+- **Content-based categorization** (from the document's text, not the file name).
+- **Query logging** (`query_log`) for quality measurement.
+- **SSE-streamed answer** + embeddable Angular UI with auto-height.
+
+## Monorepo layout (npm workspaces)
 
 ```
 municipal-assistant/
-├─ shared/      # bérlő-agnosztikus típusok (DTO-k, DocumentSource, TenantConfig)
-├─ config/      # config-betöltő + tenantok (varrat #2)  — config/tenants/vacratot.ts
+├─ shared/      # tenant-agnostic types (DTOs, DocumentSource, TenantConfig)
+├─ config/      # config loader + tenants (seam #2)  — config/tenants/vacratot.ts
 ├─ backend/     # Express API, ingestion pipeline, DB, RAG, OCR
-└─ frontend/    # Angular 21 chat UI (iframe-be ágyazható)
+└─ frontend/    # Angular 21 chat UI (embeddable in an iframe)
 ```
 
-## Előfeltételek
+## Prerequisites
 
 - Node.js **>= 20.19**, npm **>= 10**
-- Docker (a lokális Postgres + pgvector miatt)
-- OpenAI API kulcs
+- Docker (for the local Postgres + pgvector)
+- OpenAI API key
 
-## Beüzemelés
+## Setup
 
 ```bash
-# 1) Függőségek
+# 1) Dependencies
 npm install
 
-# 2) Környezeti változók
-cp .env.example .env       # majd töltsd ki (legalább OPENAI_API_KEY)
+# 2) Environment variables
+cp .env.example .env       # then fill it in (at least OPENAI_API_KEY)
 
-# 3) Adatbázis (Postgres + pgvector dockerben)
+# 3) Database (Postgres + pgvector in docker)
 npm run db:up
 
-# 4) Séma migrálása
+# 4) Migrate the schema
 npm run migrate
 ```
 
-### Titkok
+### Secrets
 
-Az OpenAI kulcs **kizárólag** a `.env`-ből (`OPENAI_API_KEY`) jön — soha nem kerül
-kódba vagy a tenant-configba. A `.env` a `.gitignore`-ban van; csak a `.env.example`
-verziózott.
+The OpenAI key comes **exclusively** from `.env` (`OPENAI_API_KEY`) — it never goes into
+code or the tenant config. `.env` is in `.gitignore`; only `.env.example` is
+versioned.
 
-## Futtatás
+## Running
 
 ```bash
-# Dokumentumok betöltése a helyi data/uploads mappából (manual-upload adapter)
+# Load documents from the local data/uploads folder (manual-upload adapter)
 npm run seed
 
-# Vagy az összes konfigurált forrás újraindexelése
+# Or reindex all configured sources
 npm run reindex
 
-# Backend dev szerver (SSE /api/ask)
+# Backend dev server (SSE /api/ask)
 npm run dev
 ```
 
-### Gyors teszt
+### Quick test
 
-1. Tegyél néhány PDF-et a `data/uploads/` mappába.
-2. `npm run seed` — betölti, darabolja, embeddeli és upsertálja őket.
-3. `npm run dev`, majd:
+1. Put a few PDFs into the `data/uploads/` folder.
+2. `npm run seed` — loads, chunks, embeds and upserts them.
+3. `npm run dev`, then:
 
 ```bash
 curl -N -X POST http://localhost:3001/api/ask \
@@ -92,82 +103,82 @@ curl -N -X POST http://localhost:3001/api/ask \
   -d '{"question":"Mennyi a kommunális adó?"}'
 ```
 
-A válasz **SSE** stream: `token` események a szövegre, a végén egy `sources`
-esemény a forrásokkal, majd `done`.
+The response is an **SSE** stream: `token` events for the text, at the end a `sources`
+event with the sources, then `done`.
 
-## Források (adapterek, varrat #1)
+## Sources (adapters, seam #1)
 
-- **`manual-upload`** — helyi mappából (`data/uploads/`) olvas PDF/TXT fájlokat.
-  Fájlonként opcionális `<fájlnév>.meta.json` (`title`, `category`, `sourceUrl`,
-  `publishedAt`) felülírhatja a metaadatot. A leggyorsabb úton tesztelhető vele a
-  teljes pipeline. Indítás: `npm run seed`.
-- **`dlp-library`** — a `vacratot.hu/dokumentumok` **kurált Document Library Pro**
-  listája (a kanonikus forrás). Az oldalról frissen kiolvasott nonce-szal hívja az
-  `admin-ajax.php` `dlp_fetch_table` végpontot **kategóriánként** (mappánként), és a
-  válasz teljes tábláját parse-olja (cím, fájl-URL, **valódi DLP-kategória**),
-  beleértve a **külső linkes** tételeket (pl. njt/Drive). Felváltja a régi
-  `wp/v2/media` megoldást: nincs médiakönyvtár-zaj, valódi kategóriák, és a
-  heurisztikára sincs szükség (`trustCategory`). A szkennelt PDF-ek itt is OCR-t
-  kapnak. (A régi `wordpress-accordion` adapter a registryben marad, de a Vácrátót
-  config már a `dlp-library`-t használja.)
-- **`njt-decrees`** — a **hatályos** önkormányzati rendeletek **hiteles
-  forrása** a Nemzeti Jogszabálytárból (`njt.jog.gov.hu`). A „csak hatályos"
-  szűrt listanézetet lapozza (szerver-renderelt HTML), és a rendeletoldal
-  §-tudatos szövegét nyeri ki. A rendelet **melléklet-PDF-jeit** (díjtáblák,
-  költségvetés) is letölti és kinyeri/OCR-ezi (`includeAttachments`,
-  `ocrAttachments`). A forrást idézi + njt-re linkel vissza, nem közli újra.
-  Az `options.authoritativeFor: ['rendeletek']` miatt sikeres betöltés után
-  **felülírja** (`superseded`) a többi forrás (pl. a vacratot.hu szkennelt)
-  `rendeletek` dokumentumait. **Megjegyzés:** az njt rate-limitel; az adapter
-  udvarias késleltetéssel dolgozik. (Egyes hálózatokról az njt blokkolhatja az
-  automata kéréseket — a betöltés onnan fut, ahonnan az njt elérhető.)
+- **`manual-upload`** — reads PDF/TXT files from a local folder (`data/uploads/`).
+  Per file, an optional `<filename>.meta.json` (`title`, `category`, `sourceUrl`,
+  `publishedAt`) can override the metadata. It is the fastest way to test the
+  full pipeline. Start: `npm run seed`.
+- **`dlp-library`** — the `vacratot.hu/dokumentumok` **curated Document Library Pro**
+  listing (the canonical source). Using a nonce freshly read from the page, it calls the
+  `admin-ajax.php` `dlp_fetch_table` endpoint **per category** (per folder), and parses
+  the entire table of the response (title, file URL, **real DLP category**),
+  including the **external-link** items (e.g. njt/Drive). It replaces the old
+  `wp/v2/media` solution: no media-library noise, real categories, and no
+  heuristic is needed (`trustCategory`). Scanned PDFs get OCR here too.
+  (The old `wordpress-accordion` adapter remains in the registry, but the Vácrátót
+  config now uses `dlp-library`.)
+- **`njt-decrees`** — the **authoritative source** of **in-force** municipal
+  decrees from the National Legislation Database (`njt.jog.gov.hu`). It paginates the
+  "in-force only" filtered list view (server-rendered HTML), and extracts the
+  §-aware text of the decree page. It also downloads and extracts/OCRs the decree's
+  **attachment PDFs** (fee tables, budget) (`includeAttachments`,
+  `ocrAttachments`). It cites the source + links back to njt, it does not republish it.
+  Because of `options.authoritativeFor: ['rendeletek']`, after a successful load it
+  **supersedes** (`superseded`) the `rendeletek` documents of the other sources (e.g. the
+  vacratot.hu scanned ones). **Note:** njt rate-limits; the adapter
+  works with polite delays. (From some networks njt may block automated
+  requests — the load runs from where njt is reachable.)
 
-> **Költség/idő:** az embedding (`text-embedding-3-small`) költsége elhanyagolható
-> (centek), az OCR lokális (ingyenes). A `reindex` fő „ára" az **idő**: sok PDF
-> udvarias késleltetéssel + OCR-rel akár több tíz perc. Fejlesztéshez a
-> `seed` (manual-upload) a gyors út.
+> **Cost/time:** the cost of embedding (`text-embedding-3-small`) is negligible
+> (cents), the OCR is local (free). The main "price" of `reindex` is **time**: many PDFs
+> with polite delays + OCR can take tens of minutes. For development,
+> `seed` (manual-upload) is the fast path.
 
-**Szkennelt PDF-ek (OCR):** ahol nincs kinyerhető szövegréteg (szkennelt kép),
-a pipeline a **Tesseract (magyar) OCR-t** futtatja (`tesseract.js` + PDF→PNG
-render `@napi-rs/canvas`-szal — nincs rendszerszintű függőség). A cél a
-**kereshetőség és idézhetőség**, nem a tökéletes átirat: aláírt/pecsétes/ferde
-szkenneknél a szöveg zajos lehet. Kapcsolók: `OCR_ENABLED`, `OCR_MAX_PAGES`,
-`OCR_VIEWPORT_SCALE` (lásd `.env.example`).
+**Scanned PDFs (OCR):** where there is no extractable text layer (scanned image),
+the pipeline runs **Tesseract (Hungarian) OCR** (`tesseract.js` + PDF→PNG
+render with `@napi-rs/canvas` — no system-level dependency). The goal is
+**searchability and citability**, not a perfect transcript: for signed/stamped/skewed
+scans the text can be noisy. Switches: `OCR_ENABLED`, `OCR_MAX_PAGES`,
+`OCR_VIEWPORT_SCALE` (see `.env.example`).
 
-Ha az OCR is üres eredményt ad (vagy `OCR_ENABLED=false`), a dokumentum
-`status='needs_ocr'` jelölést kap chunk nélkül — kereshetetlen marad, de
-nyomon követhető és bármikor re-indexelhető (a nem-`active` dokumentumokat a
-betöltés mindig újrafeldolgozza). Listázás:
+If the OCR also returns an empty result (or `OCR_ENABLED=false`), the document
+is marked `status='needs_ocr'` with no chunk — it remains unsearchable, but
+trackable and re-indexable at any time (the load always reprocesses non-`active`
+documents). To list:
 `SELECT external_id, title FROM documents WHERE status = 'needs_ocr';`
 
-**Kategorizálás:** a dokumentum kategóriáját a betöltés a **tartalomból**
-(kinyert/OCR-ezett szöveg) állapítja meg, nem a fájlnévből — a `TenantConfig`
-`categoryKeywords` (kategória-kulcsonkénti, sorrend = prioritás) kulcsszavai
-alapján, a kategória-címkékből képzett tartalékkal. A már betöltött dokumentumok
-újrakategorizálása (re-fetch/embed nélkül): `npm run recategorize`.
+**Categorization:** the load determines the document's category from the **content**
+(extracted/OCRed text), not from the file name — based on the `TenantConfig`
+`categoryKeywords` (per category key, order = priority) keywords,
+with a fallback derived from the category labels. To recategorize already-loaded documents
+(without re-fetch/embed): `npm run recategorize`.
 
 ## Frontend (Angular 21 chat UI)
 
-Minimális, beágyazható chat-felület (BRIEF 7. pont): üdvözlő üzenet, streamelt
-válasz, kattintható források, jogi disclaimer. A brandinget a backend
-`GET /api/config` végpontjáról tölti (varrat #2 tisztán marad).
+A minimal, embeddable chat interface (BRIEF point 7): welcome message, streamed
+answer, clickable sources, legal disclaimer. It loads the branding from the backend's
+`GET /api/config` endpoint (so seam #2 stays clean).
 
 ```bash
-# 1) A backendnek futnia kell (másik terminálban: npm run dev)
-# 2) Angular dev szerver — a /api hívásokat a backendre proxyzza (localhost:3001)
+# 1) The backend must be running (in another terminal: npm run dev)
+# 2) Angular dev server — proxies the /api calls to the backend (localhost:3001)
 npm run dev:frontend
 ```
 
-A dev szerver a `http://localhost:4200` címen érhető el. A `/api/*` kéréseket a
-[frontend/proxy.conf.json](frontend/proxy.conf.json) irányítja a backendre, így
-nincs CORS-gond fejlesztés közben.
+The dev server is available at `http://localhost:4200`. The `/api/*` requests are
+routed to the backend by [frontend/proxy.conf.json](frontend/proxy.conf.json), so there is
+no CORS trouble during development.
 
-**Build:** `npm run build -w frontend` → statikus fájlok a `frontend/dist/`-ben.
+**Build:** `npm run build -w frontend` → static files in `frontend/dist/`.
 
-### Beágyazás iframe-be (auto-magasság)
+### Embedding in an iframe (auto-height)
 
-Az app a tartalom magasságát `postMessage`-dzsel jelzi a szülő oldalnak (nincs
-belső görgetés). A beágyazó WordPress-aloldalon:
+The app signals the content height to the parent page via `postMessage` (no
+internal scrolling). On the embedding WordPress subpage:
 
 ```html
 <iframe id="ugyseged" src="https://<host>/ugyseged" style="width:100%;border:0"></iframe>
@@ -180,29 +191,29 @@ belső görgetés). A beágyazó WordPress-aloldalon:
 </script>
 ```
 
-> A `TenantConfig.embed.allowedOrigins` (CORS + CSP `frame-ancestors`) szabályozza,
-> mely oldalak ágyazhatják be.
+> `TenantConfig.embed.allowedOrigins` (CORS + CSP `frame-ancestors`) controls
+> which pages may embed it.
 
-## Hasznos parancsok
+## Useful commands
 
-| Parancs                             | Mit csinál                              |
+| Command                             | What it does                            |
 | ----------------------------------- | --------------------------------------- |
-| `npm run db:up` / `npm run db:down` | Lokális Postgres indítása/leállítása    |
-| `npm run migrate`                   | DB séma létrehozása/frissítése          |
-| `npm run seed`                      | Betöltés a `manual-upload` adapterrel   |
-| `npm run reindex`                   | Az összes konfigurált forrás betöltése  |
-| `npm run recategorize`              | Meglévő dokumentumok újrakategorizálása |
-| `npm run dev`                       | Backend dev szerver                     |
-| `npm run dev:frontend`              | Angular dev szerver (proxyval)          |
+| `npm run db:up` / `npm run db:down` | Start/stop local Postgres               |
+| `npm run migrate`                   | Create/update DB schema                 |
+| `npm run seed`                      | Load with the `manual-upload` adapter   |
+| `npm run reindex`                   | Load all configured sources             |
+| `npm run recategorize`              | Recategorize existing documents         |
+| `npm run dev`                       | Backend dev server                      |
+| `npm run dev:frontend`              | Angular dev server (with proxy)         |
 | `npm run build -w frontend`         | Frontend production build               |
-| `npm run lint` / `npm run format`   | Lint / formázás (backend csomagok)      |
-| `npm run typecheck`                 | Típusellenőrzés (shared/config/backend) |
+| `npm run lint` / `npm run format`   | Lint / format (backend packages)        |
+| `npm run typecheck`                 | Type checking (shared/config/backend)   |
 
 ## API
 
-| Végpont             | Leírás                                             |
+| Endpoint            | Description                                        |
 | ------------------- | -------------------------------------------------- |
-| `POST /api/ask`     | RAG válasz SSE-streamként (token → sources → done) |
-| `GET /api/health`   | Készenléti ellenőrzés                              |
-| `GET /api/config`   | Tenant branding + limitek a UI-nak                 |
-| `POST /api/reindex` | Védett (Bearer `REINDEX_TOKEN`) kézi betöltés      |
+| `POST /api/ask`     | RAG answer as an SSE stream (token → sources → done) |
+| `GET /api/health`   | Readiness check                                    |
+| `GET /api/config`   | Tenant branding + limits for the UI                |
+| `POST /api/reindex` | Protected (Bearer `REINDEX_TOKEN`) manual load     |
