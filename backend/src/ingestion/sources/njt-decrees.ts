@@ -127,12 +127,20 @@ export function parseDecreeText(html: string): {
       .replace(/\s*-\s*Nemzeti Jogszabálytár.*$/u, '')
       .trim();
 
-  const parts: string[] = [];
-  // The title, subtitle, preamble, sections (N. §) and points are all in <h1>/<h2>/<p>.
-  root.find('h1, h2, p').each((_, el) => {
-    const text = $(el).text().replace(/\s+/g, ' ').trim();
-    if (text) parts.push(text);
+  // The decree body lives in <p> for recent decrees but in <div> for older ones
+  // (e.g. the 2004/2011 tax decrees), so take the whole #jogszab text with
+  // block-level separation. Using the container's text once (rather than
+  // collecting per tag) avoids the duplication that nested <div>s would cause.
+  const block = root.clone();
+  block.find('p, div, h1, h2, h3, h4, h5, li, br, tr').each((_, el) => {
+    $(el).append('\n');
   });
+  const text = block
+    .text()
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   // Attachment PDF links (the tables/figures live here, not in the HTML body).
   const attachments: DecreeAttachment[] = [];
@@ -144,7 +152,7 @@ export function parseDecreeText(html: string): {
     attachments.push({ label: $(el).text().replace(/\s+/g, ' ').trim() || href, url: href });
   });
 
-  return { title, text: parts.join('\n'), attachments };
+  return { title, text, attachments };
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

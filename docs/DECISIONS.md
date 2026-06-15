@@ -192,3 +192,44 @@ megerősítésre vár — szándékosan nem találtunk ki indoklást.
   rögzítjük megvalósított döntésként.)
 - **Alternatíva:** `> TODO: a konkrét alternatívák a hosting-döntéssel együtt rögzítendők.`
 - **Státusz:** Halasztott.
+
+---
+
+## 11. njt rendelet-törzs kinyerése `<div>`-ből is, nem csak `<p>`-ből
+
+- **Döntés:** A `parseDecreeText` a `#jogszab` elem teljes szövegét veszi ki blokk-szintű
+  tördeléssel (egy menetben), nem csak a `h1/h2/p` elemeket.
+- **Kontextus:** Az njt **újabb** rendeletei a törzset `<p>`-be teszik, a **régiek** (pl. a
+  2004/2011-es adórendeletek) `<div>`-be. A régi parse csak `h1/h2/p`-t olvasott, ezért 139
+  rendeletből **56 csak címmel** került be (~109 karakter), elveszítve a tényleges
+  adómértékeket.
+- **Miért:** A `<div>`-törzs egyetlen menetben (`#jogszab` teljes szövege, blokk-tördeléssel)
+  duplikáció nélkül kinyerhető, és a `<p>`-alapúakat sem rontja el.
+- **Alternatíva:** Csak `<div>` hozzáadása a szelektorhoz — a beágyazott `<div>`-ek miatt
+  duplikálná a szöveget.
+- **Státusz:** Érvényes. Igazolva: kommunális adó „12.000,-Ft/adótárgy/év", építményadó
+  „220,-Ft/m2", telekadó „20 Ft/m2"; a `<p>`-alapú nagy rendeletek változatlanok.
+
+---
+
+## 12. Retrieval-minőség rétegekben — egy tünet, két (három) külön probléma
+
+- **Döntés:** A retrieval-minőséget **rétegenként** javítjuk, és a különböző okokat külön
+  kezeljük; nem húzunk egyből „nagy megoldást" egy tünetre.
+- **Kontextus:** A „mennyi a kommunális/építményadó?" kérdések rossz/üres választ adtak. A
+  vizsgálat három, **különböző természetű** réteget tárt fel:
+  1. **Adat-hiány:** a hiteles rendeletek törzse hiányzott (lásd 11. pont) — *adatprobléma*,
+     amit retrieval-hangolással nem lehetett volna megoldani.
+  2. **Pool-vágás:** az adat javítása után is elsüllyed a hiteles forrás, mert a magas
+     frekvenciájú témaszavak („adó", „bérleti") miatt az archív tömeg kiszorítja a
+     rerank-ablak előtt.
+  3. **HNSW post-filter:** a kategória-szűrt („csak rendeletek/oldalak") szemantikus keresés
+     éhezik — a HNSW a top-`ef_search` globálisan legközelebbit adja, és UTÁNA szűr
+     kategóriára, így alig marad hiteles jelölt.
+- **Miért:** A rétegenkénti haladás derítette ki, hogy a tünet jó része **adathiba** volt; a
+  korai „nagy retrieval-megoldás" elfedte volna ezt, és rossz adaton hangoltunk volna.
+- **Alternatíva:** Egyből komplex reranker a tünetre — vakon, hibás adaton.
+- **Státusz:** Részben érvényes. A 11. pont (adat) **javítva**; a 2–3. réteg (pool-vágás,
+  filtered-KNN) **dedikált, tervezett körre** vár (filtered-KNN ef_search/exact +
+  query-kulcskifejezés→cím-egyezés vagy cross-encoder), friss main fölött, before/after
+  méréssel. A `feat/retrieval-rerank` PR addig nyitva marad.
