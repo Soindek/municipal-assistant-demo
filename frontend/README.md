@@ -1,33 +1,35 @@
-# Frontend — Önkormányzati Ügysegéd (Angular 21)
+> **English** · [Magyar](README.hu.md)
 
-Beágyazható chat-felület a `municipal-assistant`-hoz: streamelt válasz (SSE),
-kattintható források, jogi disclaimer, iframe-auto-magasság. A brandinget és a
-limiteket a backend `GET /api/config` végpontjáról tölti.
+# Frontend — Municipal Assistant (Angular 21)
 
-A projekt egészéről (beüzemelés, backend, adatbetöltés): a gyökér
+Embeddable chat interface for `municipal-assistant`: streamed responses (SSE),
+clickable sources, legal disclaimer, iframe auto-height. It loads branding and
+limits from the backend `GET /api/config` endpoint.
+
+For the project as a whole (setup, backend, data loading): see the root
 [README.md](../README.md).
 
-## Fejlesztés
+## Development
 
-A backendnek futnia kell (`npm run dev` a gyökérből, `localhost:3001`). Majd:
+The backend must be running (`npm run dev` from the root, `localhost:3001`). Then:
 
 ```bash
-npm run dev:frontend     # a gyökérből — Angular dev szerver + /api proxy
-# vagy a frontend mappából:
+npm run dev:frontend     # from the root — Angular dev server + /api proxy
+# or from the frontend folder:
 npm start                # ng serve --proxy-config proxy.conf.json
 ```
 
-A dev szerver: `http://localhost:4200`. A `/api/*` kéréseket a
-[proxy.conf.json](proxy.conf.json) a backendre proxyzza (nincs CORS-gond).
+The dev server: `http://localhost:4200`. The `/api/*` requests are proxied to the
+backend by [proxy.conf.json](proxy.conf.json) (no CORS issues).
 
 ## Build
 
 ```bash
-npm run build -w frontend   # statikus kimenet: frontend/dist/
+npm run build -w frontend   # static output: frontend/dist/
 ```
 
-## Beágyazás
+## Embedding
 
-Az app a tartalom magasságát `postMessage`-dzsel jelzi a szülő oldalnak
-(`municipal-assistant:resize`) — lásd a gyökér README „Beágyazás iframe-be" részét.
-A beágyazó originokat a `TenantConfig.embed.allowedOrigins` (CORS + CSP) szabályozza.
+The app reports the content height to the parent page via `postMessage`
+(`municipal-assistant:resize`) — see the "Embedding in an iframe" section of the root README.
+The embedding origins are controlled by `TenantConfig.embed.allowedOrigins` (CORS + CSP).

@@ -1,93 +1,93 @@
-> **English** · [Magyar](BRIEF.hu.md)
+> [English](BRIEF.md) · **Magyar**
 
-# Municipal Assistant — `municipal-assistant` (Claude Code brief, round 1)
+# Önkormányzati Ügysegéd — `municipal-assistant` (Claude Code brief, 1. kör)
 
-> The product name is **generic**: `municipal-assistant` (in Hungarian "Önkormányzati Ügysegéd").
-> **Vácrátót is the first tenant (MVP tenant)**, not the product itself. Everything
-> Vácrátót-specific goes behind the two seams (section 4).
+> A termék neve **generikus**: `municipal-assistant` (magyarul „Önkormányzati Ügysegéd”).
+> **Vácrátót az első bérlő (MVP tenant)**, nem maga a termék. Minden Vácrátót-specifikus
+> dolog a két varrat mögé kerül (4. pont).
 
-> Give this file to the Claude Code session as a starting point. The prose explanation
-> is in Hungarian, the code and the identifiers are in English (the repo's language). The concrete
-> deliverables of round 1 are listed in section 10.
-
----
-
-## 1. What we are building (goal)
-
-An embeddable chat web application that answers residents' free-text questions based on
-a municipality's official documents, **with source attribution**
-(e.g. "how much is the communal tax?" → answer + the link/page of the relevant decree).
-
-The interface is a clean, friendly chat. In the background, RAG (retrieval-augmented
-generation) runs with a cheap LLM. The documents are refreshed from time to time, kept
-up to date by a scheduled ingestion pipeline.
-
-**MVP: Vácrátót.** Source: https://vacratot.hu/dokumentumok/ (PDFs organized into
-categories: Rendeletek, Jegyzőkönyvek, Polgármesteri/HVB határozatok, Nyomtatványok,
-Szerződések, Településrendezési tervek, Hírmondó; plus a Google Drive "Üvegzseb"
-folder and njt.hu's decrees in force). Among the Rendeletek there is e.g. the communal tax.
-
-**Important constraint: portability.** Other municipalities can also adopt it with mild
-developer customization. That is why everything municipality-specific goes behind two
-well-delimited "seams" (section 4), and the rest of the code knows nothing about Vácrátót.
-
-The embedding target is a subpage of the `https://vacratotikozosseg.hu/` WordPress site
-(e.g. `/ugyseged`), as an iframe.
+> Ezt a fájlt add oda a Claude Code sessionnek kiindulásként. A prózás magyarázat
+> magyarul van, a kód és az azonosítók angolul (a repo nyelve). Az 1. kör konkrét
+> szállítandóit a 10. pont sorolja fel.
 
 ---
 
-## 2. Tech stack (fixed decisions)
+## 1. Mit építünk (cél)
 
-- **Frontend:** Angular 21 (TypeScript). Embeddable in an iframe.
+Egy beágyazható chat-webalkalmazás, amely egy önkormányzat hivatalos dokumentumai
+alapján válaszol a lakosok szabad szöveges kérdéseire, **forrásmegjelöléssel**
+(pl. „mennyi a kommunális adó?” → válasz + a vonatkozó rendelet linkje/oldala).
+
+A felület letisztult, barátságos chat. A háttérben RAG (retrieval-augmented
+generation) fut egy olcsó LLM-mel. A dokumentumok időről időre frissülnek, ezt egy
+ütemezett betöltő pipeline tartja naprakészen.
+
+**MVP: Vácrátót.** Forrás: https://vacratot.hu/dokumentumok/ (kategóriákba rendezett
+PDF-ek: Rendeletek, Jegyzőkönyvek, Polgármesteri/HVB határozatok, Nyomtatványok,
+Szerződések, Településrendezési tervek, Hírmondó; plusz egy Google Drive „Üvegzseb”
+mappa és az njt.hu hatályos rendeletei). A Rendeletek közt van pl. a kommunális adó.
+
+**Fontos megkötés: hordozhatóság.** Más önkormányzatok is átvehetik enyhe fejlesztői
+testreszabással. Ezért minden településspecifikus dolog két jól körülhatárolt
+„varrat” mögé kerül (4. pont), a többi kód semmit nem tud Vácrátótról.
+
+A beágyazás célja a `https://vacratotikozosseg.hu/` WordPress-oldal egy aloldala
+(pl. `/ugyseged`), iframe-ként.
+
+---
+
+## 2. Tech stack (fix döntések)
+
+- **Frontend:** Angular 21 (TypeScript). Iframe-be ágyazható.
 - **Backend:** Node + Express, **TypeScript**.
-- **Database:** PostgreSQL + `pgvector`. **Hybrid search** (semantic vector +
-  Hungarian full-text), in a single DB.
-- **Streaming:** SSE for the chat answer.
-- **Monorepo:** npm workspaces (`frontend` / `backend` / `shared`). NOT Nx, not Turbo —
-  unnecessary for a project of this size.
-- **Embedding:** a multilingual model (because of Hungarian), e.g. OpenAI `text-embedding-3-small`
-  (1536 dim). Behind an interchangeable interface.
-- **LLM:** a cheap model that is good at Hungarian (e.g. Gemini Flash or GPT-4o/4.1-mini class).
-  Behind an interchangeable provider.
-- **Secrets:** API keys exclusively from environment variables (`.env`), NEVER in the
-  tenant-config file.
+- **Adatbázis:** PostgreSQL + `pgvector`. **Hibrid keresés** (szemantikus vektor +
+  magyar full-text), egyetlen DB-ben.
+- **Streaming:** SSE a chat-válaszhoz.
+- **Monorepo:** npm workspaces (`frontend` / `backend` / `shared`). NEM Nx, nem Turbo —
+  ekkora projekthez felesleges.
+- **Embedding:** többnyelvű modell (magyar miatt), pl. OpenAI `text-embedding-3-small`
+  (1536 dim). Csereszabatos interfész mögött.
+- **LLM:** olcsó, magyarul jó modell (pl. Gemini Flash vagy GPT-4o/4.1-mini osztály).
+  Csereszabatos provider mögött.
+- **Titkok:** API-kulcsok kizárólag környezeti változóból (`.env`), SOHA nem a
+  tenant-config fájlban.
 
-The ingestion pipeline runs independently of the request path (separate entry point / cron worker),
-they only interact through the DB.
-
----
-
-## 3. Architecture in a nutshell (two processes)
-
-**Ingestion (offline, scheduled):**
-source adapter (discovery + download) → PDF text extraction (OCR for scanned PDFs,
-Hungarian language pack) → chunking (following the `§` structure of decrees where possible) →
-embedding → upsert into the vector DB. It processes only the new/changed documents
-(based on a change-detection token).
-
-**Query (online):**
-user's question → (for follow-up questions: a cheap LLM call that produces a standalone
-search query from the conversation) → hybrid search top-k → the hits go into the LLM as context
-with a strict system prompt → SSE-streamed answer + the list of sources at the end.
+A betöltő pipeline a kérési úttól függetlenül fut (külön belépési pont / cron worker),
+csak a DB-n keresztül érintkeznek.
 
 ---
 
-## 4. The two seams (this is what makes it portable)
+## 3. Architektúra dióhéjban (két folyamat)
 
-Everything that is municipality-specific goes into THESE two; everything else is the general core.
+**Betöltés (offline, ütemezett):**
+forrás-adapter (felfedezés + letöltés) → PDF szövegkinyerés (szkennelt PDF-nél OCR,
+magyar nyelvi csomag) → darabolás (a rendeletek `§` szerkezetét követve, ahol lehet) →
+embedding → upsert a vektor-DB-be. Csak az új/megváltozott dokumentumokat dolgozza fel
+(változásfigyelő token alapján).
 
-1. **`DocumentSource` adapter** — the only deeply site-specific part. Responsible for
-   discovering and downloading documents. From the download downward every step works
-   with a uniform format, and does not know where the data came from. (Interface: section 11.)
-
-2. **`TenantConfig`** — branding, embedding origin (CORS), category taxonomy,
-   source descriptors, RAG parameters, system-prompt template, limits. (Type: section 11.)
-
-Launching a new municipality: a new config file + (if needed) a new adapter + deploy.
+**Lekérdezés (online):**
+felhasználó kérdése → (követő kérdéseknél: olcsó LLM-hívás, ami a beszélgetésből önálló
+keresési kérdést gyárt) → hibrid keresés top-k → a találatok kontextusként az LLM-be
+szigorú rendszerprompttal → SSE-streamelt válasz + a végén a források listája.
 
 ---
 
-## 5. Repo structure (monorepo)
+## 4. A két varrat (ettől hordozható)
+
+Minden, ami településspecifikus, EBBE a kettőbe kerül; minden más általános mag.
+
+1. **`DocumentSource` adapter** — az egyetlen mélyen oldalspecifikus rész. Felel a
+   dokumentumok felfedezéséért és letöltéséért. A letöltéstől lefelé minden lépés
+   egységes formátummal dolgozik, és nem tudja, honnan jött az adat. (Interfész: 11. pont.)
+
+2. **`TenantConfig`** — arculat, beágyazási origin (CORS), kategória-taxonómia,
+   forrás-leírók, RAG-paraméterek, rendszerprompt-sablon, limitek. (Típus: 11. pont.)
+
+Egy új település indítása: új config-fájl + (ha kell) új adapter + deploy.
+
+---
+
+## 5. Repo-struktúra (monorepo)
 
 ```
 municipal-assistant/
@@ -117,11 +117,11 @@ municipal-assistant/
 
 ---
 
-## 6. Data model (PostgreSQL + pgvector)
+## 6. Adatmodell (PostgreSQL + pgvector)
 
-> The embedding dimension depends on the chosen model (text-embedding-3-small = 1536).
-> For now it is **single-tenant** (separate DB/deployment per municipality), so there is NO `tenant_id`.
-> If it later becomes multi-tenant, a `tenant_id` column + mandatory filtering go here.
+> Az embedding dimenziója a választott modelltől függ (text-embedding-3-small = 1536).
+> Most **egy-bérlős** (külön DB/telepítés településenként), ezért NINCS `tenant_id`.
+> Ha később többbérlős lesz, ide jön egy `tenant_id` oszlop + kötelező szűrés.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -169,85 +169,85 @@ CREATE TABLE query_log (
 );
 ```
 
-The hybrid search merges the results of `tsv` (GIN) and `embedding` (HNSW)
-(e.g. RRF — reciprocal rank fusion, or a weighted score).
+A hibrid keresés a `tsv` (GIN) és az `embedding` (HNSW) eredményeit egyesíti
+(pl. RRF — reciprocal rank fusion, vagy súlyozott pontszám).
 
 ---
 
 ## 7. API
 
-- `POST /api/ask` — input: `{ question: string, history?: ChatTurn[] }`.
-  Output: **SSE** stream (answer tokens), at the end an event with the `Source[]` list.
-- `GET  /api/health` — readiness/liveness check.
-- `POST /api/reindex` — (admin, protected) manual triggering of ingestion.
+- `POST /api/ask` — bemenet: `{ question: string, history?: ChatTurn[] }`.
+  Kimenet: **SSE** stream (válasz tokenek), a végén egy esemény a `Source[]` listával.
+- `GET  /api/health` — készenléti/élő ellenőrzés.
+- `POST /api/reindex` — (admin, védett) a betöltés kézi indítása.
 
-The DTOs live in `shared`, so the frontend and the backend use the same ones.
-
----
-
-## 8. Mandatory safeguards (guardrails)
-
-- **Against hallucination:** the system prompt categorically forbids answering outside the
-  context ("if it is not in the sources, say you don't know, and direct them to the office").
-  At retrieval a `minScore` threshold: if there is no good enough hit → "I don't know" answer.
-- **Source fidelity:** the LLM may only cite the received, identified chunks;
-  the UI builds clickable sources from these (document + page).
-- **Currency:** store `published_at`, prefer the more recent one; the
-  `status` can mark an obsolete document. For decrees in force, njt.hu is a
-  separate, reliable source.
-- **Legal disclaimer:** at every answer/in the UI a short disclaimer ("information,
-  not official legal advice; please verify in the source").
-- **Public endpoint protection:** IP-based rate limit + max message length (TenantConfig.limits).
-- **Embedding:** CORS and `frame-ancestors` (CSP) should only allow the `TenantConfig.embed.allowedOrigins`
-  origins. Iframe auto-height via `postMessage` (no internal scrolling).
+A DTO-k a `shared`-ben élnek, így a frontend és a backend ugyanazt használja.
 
 ---
 
-## 9. What we should NOT build NOW
+## 8. Kötelező óvintézkedések (guardrails)
 
-- NO multi-tenant DB / `tenant_id` / tenant filtering. Single-tenant, config-driven.
-- NO admin UI for tenant management.
-- NO plugin system for the adapters beyond the `registry` mapping name→factory.
-- Build Vácrátót **concretely**, disciplined, behind the two seams. Pick up further
-  generalization when the second municipality actually arrives.
+- **Hallucináció ellen:** a rendszerprompt kategorikusan tiltja a kontextuson kívüli
+  választ („ha nincs a forrásokban, mondd, hogy nem tudod, és irányítsd a hivatalhoz”).
+  A retrievalnél `minScore` küszöb: ha nincs elég jó találat → „nem tudom” válasz.
+- **Forráshűség:** az LLM csak a kapott, azonosítóval ellátott darabokra hivatkozhat;
+  a UI ezekből épít kattintható forrást (dokumentum + oldal).
+- **Hatályosság:** tárold a `published_at`-et, a frissebbet részesítsd előnyben; a
+  `status`-szal jelölhető az elavult dokumentum. A hatályos rendeletekhez az njt.hu
+  külön, megbízható forrás.
+- **Jogi figyelmeztetés:** minden válasznál/UI-ban rövid disclaimer („tájékoztatás,
+  nem hivatalos jogi tanács; kérjük, ellenőrizze a forrásban”).
+- **Nyilvános végpont védelme:** IP-alapú rate limit + max üzenethossz (TenantConfig.limits).
+- **Beágyazás:** CORS és `frame-ancestors` (CSP) csak a `TenantConfig.embed.allowedOrigins`
+  origineket engedje. Iframe auto-magasság `postMessage`-dzsel (ne legyen belső görgetés).
 
 ---
 
-## 10. The concrete scope of round 1 (what this session should deliver)
+## 9. Amit MOST NE építsünk
 
-The goal is a **thin, end-to-end working** vertical slice for Vácrátót.
-If it is a lot, break it into steps; the order below is recommended.
+- NINCS többbérlős DB / `tenant_id` / bérlőszűrés. Egy-bérlős, config-vezérelt.
+- NINCS admin-felület bérlőkezeléshez.
+- NINCS plugin-rendszer az adapterekhez azon túl, hogy a `registry` név→factory leképez.
+- Vácrátótot **konkrétan** építsük meg, fegyelmezetten a két varrat mögött. A további
+  általánosítást akkor vegyük fel, amikor tényleg jön a második település.
+
+---
+
+## 10. Az 1. kör konkrét scope-ja (mit szállítson ez a session)
+
+A cél egy **végponttól végpontig működő, vékony** vertikális szelet Vácrátótra.
+Ha sok, bontsd lépésekre; az alábbi sorrend ajánlott.
 
 1. **Monorepo scaffold:** npm workspaces, TypeScript, lint/format, `.env.example`,
-   `docker-compose.yml` with a local Postgres + pgvector service.
-2. **`shared` package:** the types of section 11 (DTOs, `DocumentSource`, `TenantConfig`,
+   `docker-compose.yml` egy lokális Postgres + pgvector szolgáltatással.
+2. **`shared` csomag:** a 11. pont típusai (DTO-k, `DocumentSource`, `TenantConfig`,
    `Source`, `ChatTurn`).
-3. **DB:** the schema of section 6 as a migration; simple repositories (documents, chunks).
-4. **Config:** `config/default.ts` + `config/tenants/vacratot.ts`, with zod validation.
+3. **DB:** a 6. pont sémája migrációként; egyszerű repository-k (documents, chunks).
+4. **Config:** `config/default.ts` + `config/tenants/vacratot.ts`, zod-validációval.
 5. **Ingestion:**
-   - `registry` (adapter name → factory),
-   - `manual-upload` adapter (reads from a local folder — instantly testable with this),
-   - `wordpress-accordion` adapter (best-effort for the vacratot.hu/dokumentumok structure;
-     where the JS menu makes it hard, a well-documented TODO there),
-   - general pipeline: download → PDF text extraction + OCR fallback (Hungarian) →
-     chunking (`§`-aware, with overlap) → embedding → upsert (skip based on change token).
-6. **Backend API:** `/api/health`, then `/api/ask` (SSE) with the full RAG path:
-   (follow-up-question rewrite) → hybrid search → prompt → LLM → answer + sources +
-   the guardrails of section 8.
-7. **Frontend:** a minimal Angular chat shell (sending a question, displaying the streamed
-   answer, list of sources), embeddable in an iframe, with auto-height.
+   - `registry` (adapter-név → factory),
+   - `manual-upload` adapter (egy lokális mappából olvas — ezzel azonnal tesztelhető),
+   - `wordpress-accordion` adapter (best-effort a vacratot.hu/dokumentumok struktúrára;
+     ahol a JS-menü miatt nehéz, ott jól dokumentált TODO),
+   - általános pipeline: download → PDF szövegkinyerés + OCR-fallback (magyar) →
+     darabolás (`§`-tudatos, átfedéssel) → embedding → upsert (változás-token alapú skip).
+6. **Backend API:** `/api/health`, majd `/api/ask` (SSE) a teljes RAG-úttal:
+   (követő-kérdés átírás) → hibrid keresés → prompt → LLM → válasz + források +
+   a 8. pont guardrailjei.
+7. **Frontend:** minimális Angular chat-héj (kérdés-küldés, streamelt válasz
+   megjelenítése, források listája), iframe-be ágyazhatóan, auto-magassággal.
 
-**Minimum first commit (if it must be narrowed down a lot):** 1–5 + `/api/ask` happy path.
-The frontend and the refinements can come in round 2.
+**Minimum első commit (ha nagyon szűkíteni kell):** 1–5 + `/api/ask` happy path.
+A frontend és a finomítások jöhetnek a 2. körben.
 
-Provide a short README for running it (local Postgres, env keys, `seed`/`reindex`,
-dev server).
+Adj rövid README-t a futtatáshoz (lokális Postgres, env-kulcsok, `seed`/`reindex`,
+dev szerver).
 
 ---
 
-## 11. Code — `shared` types, `DocumentSource`, `TenantConfig`
+## 11. Kód — `shared` típusok, `DocumentSource`, `TenantConfig`
 
-> These go into `shared/src/`. The comments are in Hungarian so that the intent is unambiguous.
+> Ezek a `shared/src/`-be kerülnek. A kommentek magyarul, hogy a szándék egyértelmű legyen.
 
 ```ts
 // ───────────────────────── shared/src/dto.ts ─────────────────────────
@@ -520,15 +520,15 @@ export const vacratot: TenantConfig = {
 
 ---
 
-## 12. Open questions (awaiting decision, but not blocking round 1)
+## 12. Nyitott kérdések (döntésre vár, de nem blokkolja az 1. kört)
 
-- **Choice of the concrete LLM and embedding provider** (based on price/Hungarian quality) —
-  the interface is interchangeable, so this can be adjusted later too.
-- **OCR solution:** local Tesseract (`hun`) vs. cloud OCR — the proportion of scanned decisions
-  decides; Tesseract is enough to start.
-- **Hybrid search fusion:** RRF vs. weighted score — let's experiment on the real
-  corpus.
-- **WordPress ingestion method:** the `/dokumentumok` menu loads the links via JS; if the
-  static HTML is not enough, whether a headless browser (e.g. Playwright) is needed for the adapter.
-- **Hosting:** where the backend (Node server) and the frontend (static) go — it affects
-  the deploy pipeline.
+- **Konkrét LLM- és embedding-szolgáltató** kiválasztása (ár/magyar minőség alapján) —
+  az interfész csereszabatos, így ez később is állítható.
+- **OCR-megoldás:** lokális Tesseract (`hun`) vs. felhős OCR — a szkennelt határozatok
+  aránya dönti el; kezdésnek Tesseract elég.
+- **Hibrid keresés egyesítése:** RRF vs. súlyozott pontszám — kísérletezzünk a valós
+  korpuszon.
+- **WordPress betöltés módja:** a `/dokumentumok` menü JS-sel tölti a linkeket; ha a
+  statikus HTML nem elég, kell-e fejléc nélküli böngésző (pl. Playwright) az adapterhez.
+- **Hosting:** hova kerül a backend (Node-szerver) és a frontend (statikus) — befolyásolja
+  a deploy pipeline-t.

@@ -1,280 +1,282 @@
-# Architektúra — Önkormányzati Ügysegéd (`municipal-assistant`)
+> **English** · [Magyar](ARCHITECTURE.hu.md)
 
-Ez a dokumentum új fejlesztőknek szól: mappánként a felelősségek, a belépési
-pontok, és a két fő folyamat (betöltés és lekérdezés) lépésről lépésre, megnevezve,
-melyik fájl mit csinál. A részletes terméki specifikáció: [BRIEF.md](BRIEF.md).
+# Architecture — Municipal Assistant (`municipal-assistant`)
 
-## Áttekintés
+This document is for new developers: responsibilities per directory, the entry
+points, and the two main flows (ingestion and query) step by step, naming which
+file does what. The detailed product specification: [BRIEF.md](BRIEF.md).
 
-A termék egy beágyazható chat, amely egy önkormányzat **hivatalos dokumentumai
-alapján**, forrásmegjelöléssel válaszol. A háttérben RAG (retrieval-augmented
-generation) fut: a dokumentumokat egyszer betöltjük (offline pipeline), a
-kérdésekre pedig hibrid kereséssel + LLM-mel válaszolunk (online út).
+## Overview
 
-A kód **bérlő-agnosztikus**; minden településspecifikus dolog két „varrat" mögé
-kerül: a **`DocumentSource` adapter** (honnan jönnek a dokumentumok) és a
-**`TenantConfig`** (arculat, források, RAG-paraméterek). Az MVP bérlő: Vácrátót.
+The product is an embeddable chat that answers **based on a municipality's
+official documents**, with source attribution. Under the hood RAG (retrieval-augmented
+generation) runs: documents are ingested once (offline pipeline), and questions
+are answered with hybrid search + an LLM (online path).
 
-A repó **npm workspaces** monorepo, négy csomaggal: `shared`, `config`, `backend`,
+The code is **tenant-agnostic**; everything municipality-specific sits behind two
+"seams": the **`DocumentSource` adapter** (where documents come from) and the
+**`TenantConfig`** (branding, sources, RAG parameters). The MVP tenant: Vácrátót.
+
+The repo is an **npm workspaces** monorepo with four packages: `shared`, `config`, `backend`,
 `frontend`.
 
-## Mappánkénti felelősség
+## Responsibilities per directory
 
-### `shared/` — közös típusok (semmilyen logika)
-A frontend és a backend közös szerződése; nincs benne futtatható logika, csak típus.
-- `src/dto.ts` — a chat DTO-i: `ChatTurn`, `Source` (forrásmegjelölés), `AskRequest`,
-  és az SSE `AskEvent` uniója (`token` / `sources` / `done` / `error`).
-- `src/document-source.ts` — a **#1 varrat** típusai: `SourceDocument` (nyers
-  forrás-leíró), `FetchedContent` (letöltött bájtok), `DocumentSource` (a `list()` +
-  `fetch()` interfész), `DocumentSourceFactory`, és az injektált `SourceLogger`.
-- `src/tenant-config.ts` — a **#2 varrat** típusa: `TenantConfig` (arculat, embed-
-  originek, kategóriák, `categoryKeywords`, források, RAG-paraméterek, limitek) és
-  a `SourceDescriptor`.
+### `shared/` — common types (no logic)
+The shared contract between frontend and backend; it contains no executable logic, only types.
+- `src/dto.ts` — the chat DTOs: `ChatTurn`, `Source` (source attribution), `AskRequest`,
+  and the SSE `AskEvent` union (`token` / `sources` / `done` / `error`).
+- `src/document-source.ts` — the types of **seam #1**: `SourceDocument` (raw
+  source descriptor), `FetchedContent` (downloaded bytes), `DocumentSource` (the `list()` +
+  `fetch()` interface), `DocumentSourceFactory`, and the injected `SourceLogger`.
+- `src/tenant-config.ts` — the type of **seam #2**: `TenantConfig` (branding, embed
+  origins, categories, `categoryKeywords`, sources, RAG parameters, limits) and
+  the `SourceDescriptor`.
 
-### `config/` — tenant-betöltő (#2 varrat)
-- `src/schema.ts` — a `TenantConfig` zod-sémája (a merge utáni, kész configot validálja).
-- `src/default.ts` — józan magyar önkormányzati alapértékek + a **rendszerprompt-sablon**
-  (hallucináció-tiltás, idézési szabály).
-- `src/deep-merge.ts` — `default <- tenant` mély összefésülés.
-- `src/tenants/vacratot.ts` — Vácrátót konkrét configja (kategóriák, források,
-  modellek: `gpt-4.1-mini` + `text-embedding-3-small`).
-- `src/index.ts` — `loadTenantConfig(id)`: statikus tenant-regiszter → merge → zod-validáció.
+### `config/` — tenant loader (seam #2)
+- `src/schema.ts` — the zod schema of `TenantConfig` (validates the finished config after merge).
+- `src/default.ts` — sensible Hungarian municipal defaults + the **system prompt template**
+  (hallucination prohibition, citation rule).
+- `src/deep-merge.ts` — `default <- tenant` deep merge.
+- `src/tenants/vacratot.ts` — Vácrátót's concrete config (categories, sources,
+  models: `gpt-4.1-mini` + `text-embedding-3-small`).
+- `src/index.ts` — `loadTenantConfig(id)`: static tenant registry → merge → zod validation.
 
-### `backend/` — API, betöltés, DB, RAG, OCR
-- `src/server.ts` — **a HTTP szerver belépési pontja** (lásd lent).
-- `src/env.ts` — a környezeti változók zod-validációja; a `.env`-et a repó gyökeréből tölti.
-- `src/paths.ts` — a repó gyökér-útja (a `.env` és a feltöltési/cache mappák feloldásához).
-- `src/logger.ts` — egyszerű konzol-logger (a `SourceLogger` implementációja).
+### `backend/` — API, ingestion, DB, RAG, OCR
+- `src/server.ts` — **the entry point of the HTTP server** (see below).
+- `src/env.ts` — zod validation of the environment variables; loads `.env` from the repo root.
+- `src/paths.ts` — the repo root path (for resolving `.env` and the upload/cache directories).
+- `src/logger.ts` — simple console logger (the implementation of `SourceLogger`).
 - `src/db/`
-  - `pool.ts` — megosztott PostgreSQL connection pool (`DATABASE_URL`).
-  - `migrate.ts` — könnyű migrációs runner (sorszámozott `.sql` fájlok, `schema_migrations`).
-  - `migrations/001_init.sql` — a séma: `documents`, `chunks` (`vector(1536)` + magyar
-    `tsvector`), `query_log`; HNSW + GIN indexek.
-  - `repositories/documents.ts` — `findByExternalId` (változásfigyelés), `upsertDocument`
-    (státusszal), `supersedeOtherSources` (hiteles forrás felülírja a többit egy kategóriában).
-  - `repositories/chunks.ts` — `replaceChunks` (törlés + beszúrás tranzakcióban),
-    `deleteChunksForDocument`, vektor-literál képzés.
-  - `repositories/query-log.ts` — `insertQueryLog` (minőségméréshez).
-- `src/llm/` — **csereszabatos** LLM/embedding réteg.
-  - `types.ts` — `EmbeddingClient`, `ChatClient` (`streamChat` + `complete`) interfészek.
-  - `openai.ts` — OpenAI implementáció (a kulcs KIZÁRÓLAG env-ből).
-  - `index.ts` — `createLlmClients(config)`: a config modellneveiből épít klienseket.
-- `src/ingestion/` — **a betöltő pipeline** (lásd a folyamatot lent).
-  - `run.ts` — a betöltés **belépési pontja** (CLI: `seed`/`reindex`).
-  - `registry.ts` — adapter-név → factory leképezés (#1 varrat bekötése).
-  - `pipeline.ts` — az általános, forrás-agnosztikus pipeline (`ingestSource`).
-  - `extract.ts` — PDF (pdfjs) és sima szöveg kinyerése; jelzi, ha „szkenneltnek tűnik".
-  - `ocr.ts` — szkennelt PDF → OCR: pdfjs render `@napi-rs/canvas`-szal → `tesseract.js` (magyar).
-  - `chunk.ts` — `§`-tudatos darabolás átfedéssel.
-  - `embed-text.ts` — az embedding bemenete: dokumentum-cím + chunk (kontextus a kereséshez).
-  - `categorize.ts` — tartalom-alapú kategorizálás (`categoryKeywords` a configból).
-  - `recategorize.ts`, `reembed.ts` — karbantartó scriptek (meglévő dokumentumok
-    újrasorolása / újra-embeddelése, újraletöltés nélkül).
-  - `sources/` — **az adapterek (#1 varrat)**, mindegyik egy `DocumentSource`:
-    - `manual-upload.ts` — helyi mappából (`data/uploads/`) olvas (gyors teszt).
-    - `dlp-library.ts` — a `vacratot.hu/dokumentumok` **kurált** Document Library Pro
-      listája (admin-ajax), valódi kategóriákkal és külső linkekkel.
-    - `njt-decrees.ts` — a **hatályos** önkormányzati rendeletek + indokolások +
-      mellékletek a Nemzeti Jogszabálytárból.
-    - `wordpress-accordion.ts` — régi WP REST media megoldás (a registryben marad, de a
-      Vácrátót config már a `dlp-library`-t használja).
-- `src/retrieval/` — a keresés és a prompt összeállítása.
-  - `search.ts` — `hybridSearch`: szemantikus (pgvector koszinusz) + magyar full-text
-    (GIN, `ts_rank` hossz-norm) RRF-fúzióval, frissesség- és kategória-súllyal; csak
-    `status='active'`. `authoritativeShortlist`: garantált hiteles-jelölt (`rendeletek`/
-    `oldalak`) filtered-KNN-nel (emelt `hnsw.ef_search`) + cím-egyezéssel.
-  - `prompt.ts` — rendszerprompt, `[Forrás N]` kontextus-blokk, követő-kérdés átírás
-    (`rewriteFollowUp`), kulcskifejezés-kinyerés (`extractKeyphrase`), tekintély-tudatos
-    rerank (`rerankChunks`), a használt forrásokra szűrés (`selectUsedChunks`) + deduplikált
+  - `pool.ts` — shared PostgreSQL connection pool (`DATABASE_URL`).
+  - `migrate.ts` — lightweight migration runner (numbered `.sql` files, `schema_migrations`).
+  - `migrations/001_init.sql` — the schema: `documents`, `chunks` (`vector(1536)` + Hungarian
+    `tsvector`), `query_log`; HNSW + GIN indexes.
+  - `repositories/documents.ts` — `findByExternalId` (change detection), `upsertDocument`
+    (with status), `supersedeOtherSources` (an authoritative source overrides the others in a category).
+  - `repositories/chunks.ts` — `replaceChunks` (delete + insert in a transaction),
+    `deleteChunksForDocument`, vector literal construction.
+  - `repositories/query-log.ts` — `insertQueryLog` (for quality measurement).
+- `src/llm/` — **swappable** LLM/embedding layer.
+  - `types.ts` — `EmbeddingClient`, `ChatClient` (`streamChat` + `complete`) interfaces.
+  - `openai.ts` — OpenAI implementation (the key EXCLUSIVELY from env).
+  - `index.ts` — `createLlmClients(config)`: builds clients from the config's model names.
+- `src/ingestion/` — **the ingestion pipeline** (see the flow below).
+  - `run.ts` — the **entry point** of ingestion (CLI: `seed`/`reindex`).
+  - `registry.ts` — adapter name → factory mapping (wiring of seam #1).
+  - `pipeline.ts` — the generic, source-agnostic pipeline (`ingestSource`).
+  - `extract.ts` — PDF (pdfjs) and plain text extraction; flags if it "looks scanned".
+  - `ocr.ts` — scanned PDF → OCR: pdfjs render with `@napi-rs/canvas` → `tesseract.js` (Hungarian).
+  - `chunk.ts` — `§`-aware chunking with overlap.
+  - `embed-text.ts` — the embedding input: document title + chunk (context for search).
+  - `categorize.ts` — content-based categorization (`categoryKeywords` from the config).
+  - `recategorize.ts`, `reembed.ts` — maintenance scripts (recategorizing /
+    re-embedding existing documents, without re-downloading).
+  - `sources/` — **the adapters (seam #1)**, each a `DocumentSource`:
+    - `manual-upload.ts` — reads from a local directory (`data/uploads/`) (quick test).
+    - `dlp-library.ts` — the **curated** Document Library Pro listing of
+      `vacratot.hu/dokumentumok` (admin-ajax), with real categories and external links.
+    - `njt-decrees.ts` — the **in-force** municipal decrees + reasonings +
+      annexes from the National Legislation Database.
+    - `wordpress-accordion.ts` — old WP REST media solution (stays in the registry, but the
+      Vácrátót config now uses `dlp-library`).
+- `src/retrieval/` — search and prompt assembly.
+  - `search.ts` — `hybridSearch`: semantic (pgvector cosine) + Hungarian full-text
+    (GIN, `ts_rank` length-norm) with RRF fusion, recency and category weighting; only
+    `status='active'`. `authoritativeShortlist`: guaranteed authoritative candidate (`rendeletek`/
+    `oldalak`) with filtered-KNN (raised `hnsw.ef_search`) + title match.
+  - `prompt.ts` — system prompt, `[Forrás N]` context block, follow-up question rewrite
+    (`rewriteFollowUp`), keyphrase extraction (`extractKeyphrase`), authority-aware
+    rerank (`rerankChunks`), filtering to the used sources (`selectUsedChunks`) + deduplicated
     `Source[]` (`buildSources`).
-- `src/api/` — a HTTP réteg.
-  - `app.ts` — `createApp(deps)`: middleware + route-ok összerakása.
-  - `deps.ts` — `ApiDeps` (config + LLM-kliensek + env, egyszer felépítve induláskor).
-  - `middleware.ts` — `corsAndCsp` (csak az engedett originek), `rateLimit` (IP-alapú).
-  - `sse.ts` — SSE-fejlécek + `sendEvent` (tipizált `AskEvent` kiírása).
-  - `handlers.ts` — a végpontok: `health`, `config`, **`ask`** (a teljes RAG-út), `reindex`.
+- `src/api/` — the HTTP layer.
+  - `app.ts` — `createApp(deps)`: assembling middleware + routes.
+  - `deps.ts` — `ApiDeps` (config + LLM clients + env, built once at startup).
+  - `middleware.ts` — `corsAndCsp` (only the allowed origins), `rateLimit` (IP-based).
+  - `sse.ts` — SSE headers + `sendEvent` (writing out a typed `AskEvent`).
+  - `handlers.ts` — the endpoints: `health`, `config`, **`ask`** (the full RAG path), `reindex`.
 
 ### `frontend/` — Angular 21 chat UI
-Beágyazható (iframe), zoneless + signalek. A brandinget a `GET /api/config`-ból tölti.
-- `src/app/api.ts` — `AssistantApi`: `getConfig()` + `ask()` (a POST `/api/ask` SSE-streamjét
-  `fetch` + `ReadableStream` segítségével fogyasztja).
-- `src/app/app.ts` / `app.html` / `app.css` — a chat-komponens (üzenetek signalként,
-  streamelt válasz, források, iframe auto-magasság `postMessage`-dzsel).
-- `proxy.conf.json` — dev közben a `/api`-t a backendre proxyzza.
+Embeddable (iframe), zoneless + signals. Loads branding from `GET /api/config`.
+- `src/app/api.ts` — `AssistantApi`: `getConfig()` + `ask()` (consumes the SSE stream of
+  POST `/api/ask` via `fetch` + `ReadableStream`).
+- `src/app/app.ts` / `app.html` / `app.css` — the chat component (messages as signals,
+  streamed answer, sources, iframe auto-height via `postMessage`).
+- `proxy.conf.json` — proxies `/api` to the backend during dev.
 
-## Belépési pontok
+## Entry points
 
-- **Backend indulás:** `backend/src/server.ts` → `main()`: beolvassa az env-et
-  (`getEnv`), betölti a tenant configot (`loadTenantConfig(env.TENANT_ID)`), felépíti az
-  LLM-klienseket (`createLlmClients`), létrehozza az Express appot (`createApp`), és
-  `app.listen(PORT)`. (Indítás: `npm run dev`.)
-- **`/api/ask` (a lekérdezés):** `backend/src/api/handlers.ts` → `createAskHandler`.
-- **Betöltés:** `backend/src/ingestion/run.ts` → `run()` (CLI: `npm run seed` /
+- **Backend startup:** `backend/src/server.ts` → `main()`: reads the env
+  (`getEnv`), loads the tenant config (`loadTenantConfig(env.TENANT_ID)`), builds the
+  LLM clients (`createLlmClients`), creates the Express app (`createApp`), and
+  `app.listen(PORT)`. (Start: `npm run dev`.)
+- **`/api/ask` (the query):** `backend/src/api/handlers.ts` → `createAskHandler`.
+- **Ingestion:** `backend/src/ingestion/run.ts` → `run()` (CLI: `npm run seed` /
   `npm run reindex [-- --source=<adapter>]`).
-- **DB séma:** `backend/src/db/migrate.ts` (`npm run migrate`).
-- **Frontend:** `frontend/src/main.ts` → `App` komponens (`npm run dev:frontend`).
+- **DB schema:** `backend/src/db/migrate.ts` (`npm run migrate`).
+- **Frontend:** `frontend/src/main.ts` → `App` component (`npm run dev:frontend`).
 
-## Adatmodell (dióhéjban)
+## Data model (in a nutshell)
 
-Egy `documents` sor egy forrás-dokumentum (cím, `source_name`, `external_id`,
-`category`, `source_url`, `status`, `change_token`). Egy `chunks` sor egy
-szövegdarab a dokumentumból: `content` (tiszta szöveg), `embedding vector(1536)`,
-`tsv` (magyar full-text), `section_ref` (pl. „12. §"), `page_number`. A
-`query_log` a kérdéseket naplózza. A `documents.status` lehet `active`,
-`needs_ocr` (szkennelt, még szöveg nélkül), vagy `superseded` (hitelesebb forrás
-kiváltotta) — a keresés csak az `active`-ot nézi.
+A `documents` row is one source document (title, `source_name`, `external_id`,
+`category`, `source_url`, `status`, `change_token`). A `chunks` row is one
+text fragment from the document: `content` (clean text), `embedding vector(1536)`,
+`tsv` (Hungarian full-text), `section_ref` (e.g. "12. §"), `page_number`. The
+`query_log` logs the questions. The `documents.status` can be `active`,
+`needs_ocr` (scanned, still without text), or `superseded` (a more authoritative source
+has replaced it) — search only looks at `active`.
 
-## 1. folyamat — Betöltés (offline, `ingestion/run.ts`)
+## Flow 1 — Ingestion (offline, `ingestion/run.ts`)
 
-A betöltés a kérési úttól függetlenül fut, és csak a DB-n keresztül érintkezik a
-lekérdezéssel.
+Ingestion runs independently of the request path and only touches the query side
+through the DB.
 
-1. **Indulás (`run.ts`):** beolvassa az env-et és a tenant configot, felépíti az
-   embedding-klienst, és — env-kapcsolótól függően — egy **OCR-hook**-ot és egy
-   **kategorizáló-hook**-ot. Kiválasztja a feldolgozandó forrásokat
-   (`config.sources`, opcionálisan `--source=` szűrővel).
-2. **Adapter példányosítás (`registry.ts`):** a forrás-leíróból (`SourceDescriptor`)
-   a megfelelő `DocumentSource` adaptert hozza létre.
-3. **Általános pipeline (`pipeline.ts` → `ingestSource`)** — minden adapterre ugyanaz:
-   1. `source.list(ctx)` — az adapter felsorolja a dokumentumokat (`SourceDocument`),
-      lapozást/külső API-t maga kezel (pl. `dlp-library` az admin-ajax-ot).
-   2. **Változásfigyelés:** `documents.findByExternalId` — ha a dokumentum már `active`
-      és a `change_token` változatlan, kihagyja (nincs újraletöltés).
-   3. `source.fetch(doc)` — az adapter letölti a bináris tartalmat (`FetchedContent`).
-   4. **Szövegkinyerés (`extract.ts`):** PDF → pdfjs oldalanként; ha gyakorlatilag
-      nincs szöveg → `likelyScanned`.
-   5. **OCR (`ocr.ts`), ha szkennelt és van OCR-hook:** pdfjs az oldalt képpé
-      rendereli (`@napi-rs/canvas`), majd `tesseract.js` (magyar) kinyeri a szöveget.
-      OCR nélkül a dokumentum `needs_ocr` jelölést kap (chunk nélkül, kereshetetlen,
-      de nyomon követhető).
-   6. **Kategorizálás (`categorize.ts`), ha nem „trustCategory" forrás:** a kategóriát
-      a kinyert szövegből finomítja (a kurált DLP-forrás kategóriáját viszont tiszteletben tartja).
-   7. **Darabolás (`chunk.ts`):** `§`-tudatos chunkok átfedéssel.
-   8. **Embedding (`embed-text.ts` + `llm`):** a beágyazott szöveg = dokumentum-cím +
-      chunk (a cím így — pl. dátum — kereshetővé válik), kötegelve.
-   9. **Tárolás:** `documents.upsertDocument` + `chunks.replaceChunks` (a vektor és a
-      `tsv` is bekerül).
-   10. **Felülírás (supersede):** ha egy forrás „authoritativeFor" egy kategóriára (pl.
-       az `njt-decrees` a `rendeletek`-re), a betöltés végén a többi forrás azonos
-       kategóriájú dokumentumait `superseded`-re állítja (`documents.supersedeOtherSources`).
+1. **Startup (`run.ts`):** reads the env and the tenant config, builds the
+   embedding client, and — depending on an env switch — an **OCR hook** and a
+   **categorizer hook**. Selects the sources to process
+   (`config.sources`, optionally with a `--source=` filter).
+2. **Adapter instantiation (`registry.ts`):** from the source descriptor (`SourceDescriptor`)
+   it creates the appropriate `DocumentSource` adapter.
+3. **Generic pipeline (`pipeline.ts` → `ingestSource`)** — the same for every adapter:
+   1. `source.list(ctx)` — the adapter lists the documents (`SourceDocument`),
+      handling pagination/external APIs itself (e.g. `dlp-library` the admin-ajax).
+   2. **Change detection:** `documents.findByExternalId` — if the document is already `active`
+      and the `change_token` is unchanged, it skips it (no re-download).
+   3. `source.fetch(doc)` — the adapter downloads the binary content (`FetchedContent`).
+   4. **Text extraction (`extract.ts`):** PDF → pdfjs page by page; if there is
+      effectively no text → `likelyScanned`.
+   5. **OCR (`ocr.ts`), if scanned and an OCR hook is present:** pdfjs renders the page to an
+      image (`@napi-rs/canvas`), then `tesseract.js` (Hungarian) extracts the text.
+      Without OCR the document gets a `needs_ocr` mark (no chunk, not searchable,
+      but trackable).
+   6. **Categorization (`categorize.ts`), if not a "trustCategory" source:** it refines the category
+      from the extracted text (whereas it respects the category of the curated DLP source).
+   7. **Chunking (`chunk.ts`):** `§`-aware chunks with overlap.
+   8. **Embedding (`embed-text.ts` + `llm`):** the embedded text = document title +
+      chunk (so the title — e.g. a date — becomes searchable), batched.
+   9. **Storage:** `documents.upsertDocument` + `chunks.replaceChunks` (both the vector and the
+      `tsv` are stored).
+   10. **Supersede:** if a source is "authoritativeFor" a category (e.g.
+       `njt-decrees` for `rendeletek`), at the end of ingestion it sets the other sources'
+       documents of the same category to `superseded` (`documents.supersedeOtherSources`).
 
-Karbantartás újraletöltés nélkül: `recategorize.ts` (kategóriák újraszámolása a tárolt
-szövegből) és `reembed.ts` (chunkok újra-embeddelése, ha az embedding-szöveg módja változott).
+Maintenance without re-downloading: `recategorize.ts` (recomputing categories from the stored
+text) and `reembed.ts` (re-embedding chunks, if the embedding-text method changed).
 
-## 2. folyamat — Lekérdezés (online, `/api/ask`)
+## Flow 2 — Query (online, `/api/ask`)
 
-1. **Kérés:** a frontend (`frontend/src/app/api.ts`) POST-ol a `/api/ask`-ra, és az
-   SSE-választ `fetch` + `ReadableStream`-mel olvassa.
-2. **Validáció (`api/handlers.ts` → `createAskHandler`):** zod ellenőrzi a kérdést
-   (max hossz a `TenantConfig.limits`-ből); az IP-rate-limit a `middleware.ts`-ben fut.
-3. **Követő-kérdés átírása (`retrieval/prompt.ts` → `rewriteFollowUp`):** ha van
-   beszélgetési előzmény, egy olcsó LLM-hívás önálló keresési kérdést gyárt belőle.
-4. **Beágyazás + kulcskifejezés:** az `EmbeddingClient` a keresési kérdést vektorrá
-   alakítja; párhuzamosan egy olcsó LLM-hívás (`prompt.ts` → `extractKeyphrase`) kivonja a
-   kérdés témáját (pl. „kommunális adó") a hiteles cím-egyezéshez.
-5. **Jelölt-keresés (két forrás → rerank-ablak):**
-   - **általános hibrid pool** (`retrieval/search.ts` → `hybridSearch`): pgvector (koszinusz)
-     + magyar full-text (GIN) RRF-fúzióval, frissesség- és **kategória-súllyal**,
-     `ts_rank` hossz-normalizálással;
-   - **garantált hiteles-shortlist** (`search.ts` → `authoritativeShortlist`): a
-     `rag.authoritativeCategories` (`rendeletek`/`oldalak`) közül **filtered-KNN** megemelt
-     `hnsw.ef_search`-csel + **kulcskifejezés→cím-egyezés** (csak valódi illeszkedésnél).
-   A kettőt a handler **egyesíti** (dedup) — ez a rerank-ablak.
-6. **Guardrail (`handlers.ts`):** ha az ablak legjobb koszinusz-hasonlósága a `minScore`
-   alatt van (vagy üres) → kész „nem tudom" válasz, és vége.
-7. **Rerank (`prompt.ts` → `rerankChunks`):** tekintély-tudatos LLM-rerank az ablakot
-   relevancia szerint **top-K**-ra szűri. A garancia a hiteles forrás *behozatalára* szól,
-   a végső sorrendet a rerank dönti.
-8. **Prompt-összeállítás (`prompt.ts` → `buildAnswerMessages`):** rendszerprompt
-   (hallucináció-tiltás, idézési szabály) + a számozott `[Forrás N]` kontextus-blokk + a kérdés.
-9. **Válasz streamelése (`llm` → `streamChat`):** az LLM tokenjeit a `sse.ts`
-   `token` eseményekként küldi.
-10. **Idézés + források:** `prompt.ts` → `selectUsedChunks` a ténylegesen használt
-    forrásokra szűr, `buildSources` dokumentumonként deduplikál → `sources` esemény, majd `done`.
-11. **Naplózás:** a kérdés/átírt kérdés/válasz/talált chunkok a `query_log`-ba (best-effort).
-12. **Megjelenítés (frontend):** a tokenek folyamatos szöveggé állnak össze, alattuk a
-    források és a jogi disclaimer. (Az esetleges maradék `[Forrás N]` jelölést a frontend letakarítja.)
+1. **Request:** the frontend (`frontend/src/app/api.ts`) POSTs to `/api/ask`, and reads the
+   SSE response with `fetch` + `ReadableStream`.
+2. **Validation (`api/handlers.ts` → `createAskHandler`):** zod checks the question
+   (max length from `TenantConfig.limits`); the IP rate limit runs in `middleware.ts`.
+3. **Follow-up question rewrite (`retrieval/prompt.ts` → `rewriteFollowUp`):** if there is
+   conversation history, a cheap LLM call produces a standalone search question from it.
+4. **Embedding + keyphrase:** the `EmbeddingClient` converts the search question into a
+   vector; in parallel a cheap LLM call (`prompt.ts` → `extractKeyphrase`) extracts the
+   question's topic (e.g. "kommunális adó") for the authoritative title match.
+5. **Candidate search (two sources → rerank window):**
+   - **generic hybrid pool** (`retrieval/search.ts` → `hybridSearch`): pgvector (cosine)
+     + Hungarian full-text (GIN) with RRF fusion, recency and **category weighting**,
+     `ts_rank` length normalization;
+   - **guaranteed authoritative shortlist** (`search.ts` → `authoritativeShortlist`): from
+     `rag.authoritativeCategories` (`rendeletek`/`oldalak`) with **filtered-KNN** with raised
+     `hnsw.ef_search` + **keyphrase→title match** (only on a real match).
+   The handler **merges** the two (dedup) — this is the rerank window.
+6. **Guardrail (`handlers.ts`):** if the window's best cosine similarity is below `minScore`
+   (or empty) → a ready "I don't know" answer, and it ends.
+7. **Rerank (`prompt.ts` → `rerankChunks`):** authority-aware LLM rerank filters the window
+   by relevance down to **top-K**. The guarantee is about *bringing in* the authoritative source,
+   the final ordering is decided by the rerank.
+8. **Prompt assembly (`prompt.ts` → `buildAnswerMessages`):** system prompt
+   (hallucination prohibition, citation rule) + the numbered `[Forrás N]` context block + the question.
+9. **Streaming the answer (`llm` → `streamChat`):** the LLM's tokens are sent by `sse.ts`
+   as `token` events.
+10. **Citation + sources:** `prompt.ts` → `selectUsedChunks` filters to the actually used
+    sources, `buildSources` deduplicates per document → `sources` event, then `done`.
+11. **Logging:** the question/rewritten question/answer/found chunks into the `query_log` (best-effort).
+12. **Rendering (frontend):** the tokens assemble into continuous text, with the
+    sources and the legal disclaimer below them. (Any leftover `[Forrás N]` marker is cleaned up by the frontend.)
 
-## Egy kérdés útja — „mennyi a kommunális adó?"
+## The path of a question — "mennyi a kommunális adó?"
 
-Kövessük végig konkrétan, mi történik, amikor a felhasználó beírja a chatbe, hogy
-**„mennyi a kommunális adó?"** — a böngészőtől a forrásmegjelölt válaszig.
+Let's follow concretely what happens when the user types into the chat
+**"mennyi a kommunális adó?"** — from the browser to the source-attributed answer.
 
-1. **A felhasználó beír és küld (frontend).** A szöveg a `draft` signalba kerül
-   (`frontend/src/app/app.html` textarea). Enter vagy a Küldés gomb a komponens
-   `send()` metódusát hívja (`frontend/src/app/app.ts`): ez összeállítja az eddigi
-   beszélgetést `history`-ként, betesz egy felhasználói üzenetet és egy „készülő"
-   asszisztens-buborékot, majd meghívja az `AssistantApi.ask("mennyi a kommunális
-   adó?", history)`-t.
-2. **A kérés elindul (frontend → backend).** Az `AssistantApi.ask`
-   (`frontend/src/app/api.ts`) egy `POST /api/ask`-ot küld `{question, history}`
-   JSON-nel. Dev közben a `proxy.conf.json` a `/api`-t a backendre (`:3001`) irányítja.
-   A választ NEM várja meg egyben: a `ReadableStream`-et olvasva a `data:` SSE-kereteket
-   `AskEvent`-ekké alakítja, és ahogy jönnek, továbbadja.
-3. **A backend fogadja (`/api/ask`).** Az Express app (`backend/src/api/app.ts`) a
-   POST `/api/ask`-ot előbb az IP-alapú `rateLimit` middleware-en (`middleware.ts`)
-   engedi át, majd a `createAskHandler` kezelőhöz (`backend/src/api/handlers.ts`).
-4. **Validáció + SSE-nyitás.** A handler zod-dal ellenőrzi a kérdést (nem üres, és a
-   `TenantConfig.limits.maxQuestionChars` alatt van). Ha hibás → `400`. Ha jó, az
-   `initSse` (`sse.ts`) beállítja az SSE-fejléceket, és egy `AbortController` figyeli,
-   ha a kliens idő előtt bontana.
-5. **Követő-kérdés átírás — most kimarad.** A `rewriteFollowUp` (`retrieval/prompt.ts`)
-   üres `history`-nál visszaadja a kérdést változatlanul. (Ha pl. korábban a
-   kommunális adóról kérdezett volna, és most azt írná, hogy „és mikor kell fizetni?",
-   itt egy olcsó LLM-hívás csinálna belőle önálló keresési kérdést.)
-6. **Beágyazás + kulcskifejezés.** A handler párhuzamosan futtatja az
-   `EmbeddingClient.embed(["mennyi a kommunális adó?"])`-t (`llm/openai.ts`,
-   `text-embedding-3-small` → 1536 dimenziós vektor) és az `extractKeyphrase`-t
-   (`prompt.ts`) — utóbbi kivonja a témát: „kommunális adó".
-7. **Jelölt-keresés (két forrás → rerank-ablak).** (a) `hybridSearch`
-   (`retrieval/search.ts`): a **szemantikus** (`chunks.embedding` koszinusz, HNSW) és a
-   **magyar full-text** (`chunks.tsv`, GIN, `ts_rank` hossz-normalizálással) listák **RRF**-
-   fúziója, frissesség- és **kategória-súllyal** → általános pool. (b) `authoritativeShortlist`
-   (`search.ts`): a `rendeletek`/`oldalak` közül **filtered-KNN** megemelt `hnsw.ef_search`-csel
-   (a HNSW post-filter éhezés ellen) + **cím-egyezés** a „kommunális adó" kulcskifejezésre →
-   ez garantálja, hogy a hiteles *kommunális adóról* szóló njt-rendelet bekerüljön. A kettőt a
-   handler egyesíti (dedup) — ez a rerank-ablak.
-8. **Guardrail.** Ha az ablak legjobb koszinusz-hasonlósága a `rag.minScore` (0.2) alatt van
-   (vagy üres) → kész „ezt nem találom a dokumentumokban…" válasz, és vége. Itt van jó
-   találat, megy tovább.
-9. **Rerank.** A `rerankChunks` (`prompt.ts`) tekintély-tudatos LLM-rerankja az ablakot
-   relevancia szerint **top-K** (8) chunkra szűri (a hiteles rendelet behozatala garantált, a
-   sorrendet a rerank dönti).
-10. **A prompt összeáll.** A `buildAnswerMessages` (`prompt.ts`) felépíti az
-   üzeneteket: a **rendszerprompt** (a `TenantConfig.rag.systemPromptTemplate`-ből, a
-   `{displayName}` behelyettesítve — tartalmazza a „kizárólag a forrásokból válaszolj"
-   és az idézési szabályt), majd egy felhasználói üzenet, amelyben a `buildContextBlock`
-   a találatokat számozott **`[Forrás N]`** blokkokká fűzi (cím, `§`, oldal +
-   chunk-szöveg), végül maga a kérdés.
-11. **LLM-hívás, streamelve.** A handler a `ChatClient.streamChat(messages, onToken)`-t
-    hívja (`backend/src/llm/openai.ts`, `gpt-4.1-mini`). Ahogy érkeznek a tokenek, a
-    `sse.ts` `sendEvent`-je `{type:'token', text}` eseményként küldi őket a kliensnek —
-    pl. „A kommunális adó mértéke … 12.000 Ft évente …".
-12. **Idézés + források + lezárás.** A `selectUsedChunks` (`prompt.ts`) a válasz alapján
-    leszűri a ténylegesen használt chunkokra, majd a `buildSources` dokumentumonként
-    deduplikált `Source[]`-t készít (cím, kategória, `source_url`, oldal, `§`) → `{type:'sources'}`,
-    majd `{type:'done'}`.
-13. **Naplózás.** A `logQuery` (`handlers.ts`) tűzd-és-felejtsd módon a `query_log`-ba
-    írja a kérdést, az átírt kérdést, a választ és a talált chunk-id-kat.
-14. **Megjelenítés (frontend).** Az `App.send()` ciklusa fogyasztja az eseményeket: a
-    `token`-eket a `assistant.text` signalhoz fűzi (élő gépelés-érzet), a `sources`-t a
-    buborék alá teszi kattintható linkként, a `done`-nál véglegesít. A felhasználó a
-    folyamatos választ látja, alatta a **forrást** (a kommunális adó rendelet,
-    `njt.jog.gov.hu/jogszabaly/…` linkkel) és a jogi disclaimert.
+1. **The user types and sends (frontend).** The text goes into the `draft` signal
+   (`frontend/src/app/app.html` textarea). Enter or the Send button calls the component's
+   `send()` method (`frontend/src/app/app.ts`): this assembles the conversation so far
+   as `history`, adds a user message and a "pending"
+   assistant bubble, then calls `AssistantApi.ask("mennyi a kommunális
+   adó?", history)`.
+2. **The request starts (frontend → backend).** `AssistantApi.ask`
+   (`frontend/src/app/api.ts`) sends a `POST /api/ask` with `{question, history}`
+   JSON. During dev `proxy.conf.json` routes `/api` to the backend (`:3001`).
+   It does NOT wait for the whole response: reading the `ReadableStream`, it converts the `data:` SSE frames
+   into `AskEvent`s and passes them on as they arrive.
+3. **The backend receives it (`/api/ask`).** The Express app (`backend/src/api/app.ts`)
+   first lets the POST `/api/ask` through the IP-based `rateLimit` middleware (`middleware.ts`),
+   then to the `createAskHandler` handler (`backend/src/api/handlers.ts`).
+4. **Validation + opening the SSE.** The handler checks the question with zod (not empty, and
+   below `TenantConfig.limits.maxQuestionChars`). If invalid → `400`. If valid,
+   `initSse` (`sse.ts`) sets the SSE headers, and an `AbortController` watches
+   whether the client disconnects prematurely.
+5. **Follow-up rewrite — skipped here.** `rewriteFollowUp` (`retrieval/prompt.ts`)
+   returns the question unchanged for empty `history`. (If, for example, they had previously asked
+   about the communal tax and now wrote "és mikor kell fizetni?",
+   here a cheap LLM call would make a standalone search question out of it.)
+6. **Embedding + keyphrase.** The handler runs in parallel
+   `EmbeddingClient.embed(["mennyi a kommunális adó?"])` (`llm/openai.ts`,
+   `text-embedding-3-small` → 1536-dimensional vector) and `extractKeyphrase`
+   (`prompt.ts`) — the latter extracts the topic: "kommunális adó".
+7. **Candidate search (two sources → rerank window).** (a) `hybridSearch`
+   (`retrieval/search.ts`): the **RRF** fusion of the **semantic** (`chunks.embedding` cosine, HNSW) and the
+   **Hungarian full-text** (`chunks.tsv`, GIN, `ts_rank` length normalization) lists,
+   with recency and **category weighting** → generic pool. (b) `authoritativeShortlist`
+   (`search.ts`): from `rendeletek`/`oldalak` with **filtered-KNN** with raised `hnsw.ef_search`
+   (against HNSW post-filter starvation) + **title match** on the "kommunális adó" keyphrase →
+   this guarantees that the authoritative njt decree about the *communal tax* gets in. The handler
+   merges the two (dedup) — this is the rerank window.
+8. **Guardrail.** If the window's best cosine similarity is below `rag.minScore` (0.2)
+   (or empty) → a ready "I can't find this in the documents…" answer, and it ends. Here there is a good
+   hit, it continues.
+9. **Rerank.** The authority-aware LLM rerank of `rerankChunks` (`prompt.ts`) filters the window
+   by relevance down to **top-K** (8) chunks (bringing in the authoritative decree is guaranteed, the
+   ordering is decided by the rerank).
+10. **The prompt is assembled.** `buildAnswerMessages` (`prompt.ts`) builds the
+   messages: the **system prompt** (from `TenantConfig.rag.systemPromptTemplate`, with
+   `{displayName}` substituted in — it contains the "answer exclusively from the sources"
+   and the citation rule), then a user message in which `buildContextBlock`
+   joins the hits into numbered **`[Forrás N]`** blocks (title, `§`, page +
+   chunk text), and finally the question itself.
+11. **LLM call, streamed.** The handler calls `ChatClient.streamChat(messages, onToken)`
+    (`backend/src/llm/openai.ts`, `gpt-4.1-mini`). As the tokens arrive, the
+    `sse.ts` `sendEvent` sends them to the client as `{type:'token', text}` events —
+    e.g. "A kommunális adó mértéke … 12.000 Ft évente …".
+12. **Citation + sources + closing.** `selectUsedChunks` (`prompt.ts`) filters, based on the answer,
+    to the actually used chunks, then `buildSources` creates a per-document
+    deduplicated `Source[]` (title, category, `source_url`, page, `§`) → `{type:'sources'}`,
+    then `{type:'done'}`.
+13. **Logging.** `logQuery` (`handlers.ts`) writes the question, the rewritten question,
+    the answer and the found chunk ids into the `query_log` in fire-and-forget mode.
+14. **Rendering (frontend).** The `App.send()` loop consumes the events: it appends the
+    `token`s to the `assistant.text` signal (a live typing feel), puts the `sources` below the
+    bubble as clickable links, and finalizes on `done`. The user sees the
+    continuous answer, with the **source** below it (the communal tax decree,
+    with an `njt.jog.gov.hu/jogszabaly/…` link) and the legal disclaimer.
 
-Röviden: `app.ts` → `api.ts` → `api/app.ts` → `handlers.ts` → (`prompt.rewriteFollowUp`)
+In short: `app.ts` → `api.ts` → `api/app.ts` → `handlers.ts` → (`prompt.rewriteFollowUp`)
 → `llm.embed` + `prompt.extractKeyphrase` → `search.hybridSearch` + `search.authoritativeShortlist`
-→ (egyesített ablak) → `prompt.rerankChunks` → `prompt.buildAnswerMessages` → `llm.streamChat`
-→ `prompt.selectUsedChunks` + `prompt.buildSources` → SSE → vissza a `app.ts`-be.
+→ (merged window) → `prompt.rerankChunks` → `prompt.buildAnswerMessages` → `llm.streamChat`
+→ `prompt.selectUsedChunks` + `prompt.buildSources` → SSE → back into `app.ts`.
 
-## Keresztmetsző elvek
+## Cross-cutting principles
 
-- **Két varrat:** minden településspecifikus dolog a `DocumentSource` adapterek
-  (`backend/src/ingestion/sources/`) és a `TenantConfig` (`config/tenants/`) mögött van;
-  a mag (pipeline, retrieval, API) semmit nem tud egy konkrét településről.
-- **Titkok:** az OpenAI-kulcs KIZÁRÓLAG env-ből (`OPENAI_API_KEY`), soha a configban.
-- **Guardrailek:** `minScore` küszöb, kötelező forrásmegjelölés, disclaimer, IP-rate-limit,
-  CORS + CSP `frame-ancestors` (csak az engedett beágyazó originek).
-- **Hitelesség/hatályosság:** az `njt-decrees` a rendeletek hiteles forrása, és
-  `supersede`-del kiváltja a kevésbé megbízható (pl. szkennelt) másolatokat.
-- **Egy-bérlős:** nincs `tenant_id` a DB-ben; egy telepítés = egy település.
+- **Two seams:** everything municipality-specific is behind the `DocumentSource` adapters
+  (`backend/src/ingestion/sources/`) and the `TenantConfig` (`config/tenants/`);
+  the core (pipeline, retrieval, API) knows nothing about a concrete municipality.
+- **Secrets:** the OpenAI key EXCLUSIVELY from env (`OPENAI_API_KEY`), never in the config.
+- **Guardrails:** `minScore` threshold, mandatory source attribution, disclaimer, IP rate limit,
+  CORS + CSP `frame-ancestors` (only the allowed embedding origins).
+- **Authority/in-force status:** `njt-decrees` is the authoritative source of the decrees, and
+  with `supersede` it replaces the less reliable (e.g. scanned) copies.
+- **Single-tenant:** there is no `tenant_id` in the DB; one deployment = one municipality.

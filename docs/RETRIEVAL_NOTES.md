@@ -1,58 +1,61 @@
-# Retrieval — jegyzetek és mérések
+> **English** · [Magyar](RETRIEVAL_NOTES.hu.md)
 
-> Ez a fájl a retrieval-redesign kör kontextusát rögzíti tartósan (mérések, döntés,
-> állapot), hogy ne csak a beszélgetésben éljen. A döntés indoklása: [DECISIONS.md](DECISIONS.md)
-> #12 (a háromrétegű tanulság) és #13 (a redesign).
+# Retrieval — notes and measurements
 
-## Aktuális állapot (2026-06-15)
+> This file durably records the context of the retrieval-redesign round (measurements, decision,
+> status) so it doesn't only live in the conversation. The rationale for the decision: [DECISIONS.md](DECISIONS.md)
+> #12 (the three-layer lesson) and #13 (the redesign).
 
-- **Mergelve:** a redesign a **main-en** van — PR **#17** (`feat/retrieval-redesign`,
-  kód-commit `2fcf909`). Az after-mérés megtörtént (mind a 6 kérdés, valódi adaton — lásd a
-  táblát lent), typecheck + lint zöld, a kontrollok nem romlottak.
-- **Lezárandó:** a `feat/retrieval-rerank` PR-t ez **kiváltja** — zárd le mergelés nélkül
-  (különben két átfedő rerank-megoldás lenne).
-- **Függőség:** a méréshez kellett az njt-törzs adat-fix (DECISIONS #11), szintén main-en.
-- **Megjegyzés:** ezt a notes-fájlt a redesign merge UTÁN, közvetlenül a main-re commitoltam
-  (eljárási csúszás a „branch + PR" folyamathoz képest); a tartalom a mainnel konzisztens.
+## Current status (2026-06-15)
 
-## A választott megközelítés (röviden)
+- **Merged:** the redesign is on **main** — PR **#17** (`feat/retrieval-redesign`,
+  code commit `2fcf909`). The after-measurement is done (all 6 questions, on real data — see the
+  table below), typecheck + lint green, the controls did not regress.
+- **To close:** the `feat/retrieval-rerank` PR is **superseded** by this — close it without merging
+  (otherwise there would be two overlapping rerank solutions).
+- **Dependency:** the measurement required the njt-body data fix (DECISIONS #11), also on main.
+- **Note:** I committed this notes file directly to main AFTER the redesign merge
+  (a procedural slip relative to the "branch + PR" flow); the content is consistent with main.
 
-A rerank-ablak két forrásból áll, és egy tekintély-tudatos LLM-rerank szűri top-K-ra:
-1. **általános hibrid pool** (`hybridSearch`): pgvector koszinusz + magyar full-text
-   (`ts_rank` hossz-norm), RRF + frissesség- + **kategória-súly**;
-2. **garantált hiteles-shortlist** (`authoritativeShortlist`, `rendeletek`/`oldalak`):
-   **filtered-KNN emelt `hnsw.ef_search`-csel** (a HNSW post-filter éhezés ellen) +
-   **kulcskifejezés→cím-egyezés** (`extractKeyphrase` → dokumentum-cím).
-3. **`rerankChunks`** dönti a végső sorrendet.
+## The chosen approach (in brief)
 
-**Elv és kikötések:**
-- **Behozatal, nem győzelem:** a shortlist garantálja, hogy a hiteles forrás bekerül a
-  rerank-ablakba; a sorrendet a rerank dönti (nem nyomjuk fel erőből a rendeletet).
-- **Cím-egyezés csak VALÓDI illeszkedésnél** emel be (üres kulcskifejezés / nincs
-  websearch-találat → nem ad hozzá semmit).
-- **Cross-encoder reranker csak tartalék** — nem volt rá szükség (a fenti kettő elég).
-- **Mérés mind a 6 kérdésen**, a 2 kontroll (ebtartás, tűzifa) nem romolhat.
+The rerank window comes from two sources, and an authority-aware LLM rerank filters it to top-K:
+1. **general hybrid pool** (`hybridSearch`): pgvector cosine + Hungarian full-text
+   (`ts_rank` length-norm), RRF + recency + **category weight**;
+2. **guaranteed authoritative shortlist** (`authoritativeShortlist`, `rendeletek`/`oldalak`):
+   **filtered-KNN with raised `hnsw.ef_search`** (against HNSW post-filter starvation) +
+   **keyphrase→title match** (`extractKeyphrase` → document title).
+3. **`rerankChunks`** decides the final order.
 
-**Mellékesen feltárt gyökérbug:** a config zod-séma korábban **lestrippelte** a
-`rag.authoritativeCategories` / `rag.categoryWeights` mezőket (nem voltak a sémában) → runtime-ban
-`undefined`. Ez a „kategória-súly nem hat" rejtély oka is volt. A sémába felvéve működnek.
+**Principle and constraints:**
+- **Inclusion, not victory:** the shortlist guarantees that the authoritative source gets into the
+  rerank window; the order is decided by the rerank (we don't force the decree to the top).
+- **Title match only promotes on a REAL match** (empty keyphrase / no
+  websearch hit → adds nothing).
+- **Cross-encoder reranker is only a fallback** — it was not needed (the two above are enough).
+- **Measurement across all 6 questions**, the 2 controls (dog-keeping, firewood) must not regress.
 
-## Before / after mérés (a hiteles dokumentum rangja)
+**Root bug uncovered along the way:** the config zod schema previously **stripped** the
+`rag.authoritativeCategories` / `rag.categoryWeights` fields (they were not in the schema) → at runtime
+`undefined`. This was also the cause of the "category weight has no effect" mystery. Added to the schema, they work.
 
-A „before" a main jelenlegi (rerank nélküli) hibrid keresése; az „after" a redesign teljes
-lánca (pool + shortlist → egyesített ablak → rerank → top-8).
+## Before / after measurement (rank of the authoritative document)
 
-| Kérdés | before (top-8 / top-20) | after (final top-8) | válasz helyes? |
+The "before" is main's current (rerank-free) hybrid search; the "after" is the redesign's full
+chain (pool + shortlist → merged window → rerank → top-8).
+
+| Question | before (top-8 / top-20) | after (final top-8) | answer correct? |
 |---|---|---|---|
 | Mennyi a magánszemélyek kommunális adója? | — / — | **#2** | ✅ 12.000 Ft/adótárgy/év |
 | Mennyi az építményadó? | — / — | **#4** | ✅ 220 Ft/m² |
 | Mennyi a telekadó? | — / — | **#1** | ✅ |
-| Mit kell tudni az ebtartásról? (kontroll) | #1 / #1 | **#1** | ✅ (nem romlott) |
-| Hogyan kaphatok szociális tűzifát? (kontroll) | #3 / #3 | **#1** | ✅ (javult) |
-| Mennyi a nagyterem bérleti díja? (Gárdonyi oldal) | — / — | **#1** | ✅ |
+| Mit kell tudni az ebtartásról? (control) | #1 / #1 | **#1** | ✅ (did not regress) |
+| Hogyan kaphatok szociális tűzifát? (control) | #3 / #3 | **#1** | ✅ (improved) |
+| Mennyi a nagyterem bérleti díja? (Gárdonyi page) | — / — | **#1** | ✅ |
 
-**Összegzés:** baseline-ben 4/6 a top-20-ba sem került be; a redesign után mind a 6 hiteles
-forrás a **top-8 kontextusban** van, helyes válaszokkal, a kontrollok nem romlottak (sőt a
-tűzifa #3→#1 és a nagyterem —→#1 javult). A kommunális #2 / építmény #4 azért nem #1, mert a
-rerank egy a számot közvetlenül kimondó Hírmondót rangsorol elé — ez a „behozatal, nem
-győzelem" elv szerint elfogadott; a rendelet bekerül és idéződik, a válasz helyes.
+**Summary:** in the baseline 4/6 didn't even make it into the top-20; after the redesign all 6
+authoritative sources are in the **top-8 context**, with correct answers, and the controls did not
+regress (in fact firewood improved #3→#1 and the large hall —→#1). The communal tax #2 / building
+tax #4 are not #1 because the rerank ranks ahead of them a Hírmondó (newsletter) that states the
+number directly — this is acceptable under the "inclusion, not victory" principle; the decree is
+included and cited, and the answer is correct.
