@@ -2,6 +2,7 @@
   class="assistant"
   [class.assistant--embedded]="embedded()"
   [style.--accent]="config()?.branding?.primaryColor || '#1e6fd0'"
+  [style.--on-accent]="config()?.branding?.onPrimaryColor || '#fff'"
 >
   @if (!embedded()) {
     <header class="assistant__header">

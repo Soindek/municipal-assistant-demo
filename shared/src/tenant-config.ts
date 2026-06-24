@@ -28,6 +28,11 @@ export interface TenantConfig {
     assistantName: string;
     logoUrl?: string;
     primaryColor?: string;
+    /** Foreground (text/icon) colour shown on top of primaryColor — set this for
+     *  readable contrast when primaryColor is light. Defaults to white. */
+    onPrimaryColor?: string;
+    /** Short glyph/emoji on the widget launcher button (e.g. "§"). Defaults to "§". */
+    launcherIcon?: string;
     /** Welcome message at the top of the chat. */
     welcomeMessage: string;
     /** Legal disclaimer (always visible / on every answer). */

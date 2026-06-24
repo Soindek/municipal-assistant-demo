@@ -17,6 +17,8 @@ export const tenantConfigSchema = z.object({
     assistantName: z.string().min(1),
     logoUrl: z.string().url().optional(),
     primaryColor: z.string().optional(),
+    onPrimaryColor: z.string().optional(),
+    launcherIcon: z.string().optional(),
     welcomeMessage: z.string().min(1),
     disclaimer: z.string().min(1),
   }),

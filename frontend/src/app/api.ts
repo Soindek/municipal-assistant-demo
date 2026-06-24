@@ -10,6 +10,7 @@ export interface UiConfig {
     welcomeMessage: string;
     disclaimer: string;
     primaryColor: string | null;
+    onPrimaryColor: string | null;
     logoUrl: string | null;
   };
   limits: {

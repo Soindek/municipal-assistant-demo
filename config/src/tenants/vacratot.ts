@@ -13,6 +13,10 @@ export const vacratot: DeepPartial<TenantConfig> = {
   branding: {
     assistantName: 'Vácrátóti Ügysegéd',
     primaryColor: 'rgb(126, 217, 87)',
+    // Dark text on the light green for readable contrast.
+    onPrimaryColor: '#14391f',
+    // The § (section sign) fits a decrees-focused assistant.
+    launcherIcon: '§',
     welcomeMessage:
       'Üdvözlöm! Vácrátót hivatalos dokumentumai (rendeletek, jegyzőkönyvek, szerződések) alapján segítek. Miben lehetek a segítségére?',
     disclaimer:

@@ -2,6 +2,7 @@
   display: block;
   height: 100%;
   --accent: #1e6fd0;
+  --on-accent: #ffffff;
   --bg: #ffffff;
   --user-bg: var(--accent);
   --assistant-bg: #f1f3f5;
@@ -95,7 +96,7 @@
 
 .msg--user .msg__bubble {
   background: var(--user-bg);
-  color: #fff;
+  color: var(--on-accent);
   border-bottom-right-radius: 4px;
 }
 
@@ -189,7 +190,7 @@
 
 .composer__send {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: 8px;
   padding: 8px 18px;

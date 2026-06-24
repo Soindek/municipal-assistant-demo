@@ -14,12 +14,16 @@ export function buildWidgetScript(opts: {
   title: string;
   launcherLabel: string;
   accent: string;
+  onPrimary: string;
+  icon: string;
 }): string {
   const cfg = JSON.stringify({
     origin: opts.appOrigin,
     title: opts.title,
     label: opts.launcherLabel,
     accent: opts.accent,
+    onPrimary: opts.onPrimary,
+    icon: opts.icon,
   });
 
   // The body below is plain browser JS (no backticks / template literals, so it
@@ -41,18 +45,19 @@ export function buildWidgetScript(opts: {
 
   function styles() {
     var a = CFG.accent;
+    var fg = CFG.onPrimary;
     return [
-      "." + NS + "-launcher{position:fixed;right:20px;bottom:20px;z-index:2147483000;display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border:0;border-radius:999px;background:" + a + ";color:#fff;font:600 15px/1 " + FONT + ";cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.22);transition:transform .15s ease,box-shadow .15s ease}",
+      "." + NS + "-launcher{position:fixed;right:20px;bottom:20px;z-index:2147483000;display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border:0;border-radius:999px;background:" + a + ";color:" + fg + ";font:600 15px/1 " + FONT + ";cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.22);transition:transform .15s ease,box-shadow .15s ease}",
       "." + NS + "-launcher:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(0,0,0,.28)}",
-      "." + NS + "-launcher:focus-visible{outline:3px solid rgba(255,255,255,.6);outline-offset:2px}",
-      "." + NS + "-launcher svg{width:22px;height:22px;flex:none}",
+      "." + NS + "-launcher:focus-visible{outline:3px solid rgba(0,0,0,.35);outline-offset:2px}",
+      "." + NS + "-launcher-icon{font-size:21px;font-weight:700;line-height:1;flex:none}",
       "." + NS + "-panel{position:fixed;right:20px;bottom:90px;z-index:2147483000;width:380px;height:600px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.28);opacity:0;visibility:hidden;transform:translateY(12px);transition:opacity .18s ease,transform .18s ease,visibility .18s}",
       "." + NS + "-panel--open{opacity:1;visibility:visible;transform:none}",
-      "." + NS + "-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:" + a + ";color:#fff;font:600 15px/1.2 " + FONT + "}",
+      "." + NS + "-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:" + a + ";color:" + fg + ";font:600 15px/1.2 " + FONT + "}",
       "." + NS + "-title{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      "." + NS + "-close{border:0;background:transparent;color:#fff;cursor:pointer;padding:4px;border-radius:8px;display:inline-flex;line-height:0}",
-      "." + NS + "-close:hover{background:rgba(255,255,255,.18)}",
-      "." + NS + "-close:focus-visible{outline:2px solid rgba(255,255,255,.7);outline-offset:1px}",
+      "." + NS + "-close{border:0;background:transparent;color:" + fg + ";cursor:pointer;padding:4px;border-radius:8px;display:inline-flex;line-height:0}",
+      "." + NS + "-close:hover{background:rgba(0,0,0,.12)}",
+      "." + NS + "-close:focus-visible{outline:2px solid rgba(0,0,0,.4);outline-offset:1px}",
       "." + NS + "-close svg{width:20px;height:20px}",
       "." + NS + "-iframe{flex:1 1 auto;width:100%;border:0;background:#fff}",
       "." + NS + "-greeting{position:fixed;right:20px;bottom:86px;z-index:2147482999;max-width:240px;background:#fff;color:#1a1a1a;border-radius:14px;padding:12px 34px 12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.2);font:14px/1.4 " + FONT + ";cursor:pointer}",
@@ -61,10 +66,7 @@ export function buildWidgetScript(opts: {
     ].join("");
   }
 
-  // --- inline SVG icons (white, inherit currentColor) ---
-  function iconChat() {
-    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4 4v-4H6a2 2 0 0 1-2-2V5Z" fill="currentColor"/></svg>';
-  }
+  // --- inline SVG close icon (inherits currentColor) ---
   function iconClose() {
     return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   }
@@ -80,8 +82,9 @@ export function buildWidgetScript(opts: {
   launcher.setAttribute("aria-label", CFG.label);
   launcher.setAttribute("aria-expanded", "false");
   var icon = doc.createElement("span");
-  icon.style.display = "inline-flex";
-  icon.innerHTML = iconChat();
+  icon.className = NS + "-launcher-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = CFG.icon; // tenant-configured glyph (e.g. §)
   var label = doc.createElement("span");
   label.className = NS + "-launcher-text";
   label.textContent = CFG.label;

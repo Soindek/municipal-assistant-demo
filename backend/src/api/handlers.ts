@@ -58,6 +58,7 @@ export function createConfigHandler(deps: ApiDeps): RequestHandler {
         welcomeMessage: config.branding.welcomeMessage,
         disclaimer: config.branding.disclaimer,
         primaryColor: config.branding.primaryColor ?? null,
+        onPrimaryColor: config.branding.onPrimaryColor ?? null,
         logoUrl: config.branding.logoUrl ?? null,
       },
       limits: {
@@ -81,6 +82,8 @@ export function createWidgetHandler(deps: ApiDeps): RequestHandler {
       title: config.branding.assistantName,
       launcherLabel: config.branding.assistantName,
       accent: config.branding.primaryColor ?? '#1e6fd0',
+      onPrimary: config.branding.onPrimaryColor ?? '#ffffff',
+      icon: config.branding.launcherIcon ?? '§',
     });
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=300');
