@@ -6,6 +6,7 @@ html,
 body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: transparent;
   font-family:
     system-ui,
@@ -15,6 +16,13 @@ body {
     Arial,
     sans-serif;
   color: #1a1a1a;
+}
+
+/* The single root component fills the viewport (full-page) or the widget panel
+   (iframe), so the chat can use a fill-height layout with an internal scroll. */
+app-root {
+  display: block;
+  height: 100%;
 }
 
 * {

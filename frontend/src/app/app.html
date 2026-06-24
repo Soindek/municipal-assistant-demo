@@ -1,10 +1,16 @@
-<main class="assistant" [style.--accent]="config()?.branding?.primaryColor || '#1e6fd0'">
-  <header class="assistant__header">
-    @if (config()?.branding?.logoUrl; as logo) {
-      <img class="assistant__logo" [src]="logo" alt="" />
-    }
-    <h1 class="assistant__title">{{ config()?.displayName ?? 'Önkormányzati Ügysegéd' }}</h1>
-  </header>
+<main
+  class="assistant"
+  [class.assistant--embedded]="embedded()"
+  [style.--accent]="config()?.branding?.primaryColor || '#1e6fd0'"
+>
+  @if (!embedded()) {
+    <header class="assistant__header">
+      @if (config()?.branding?.logoUrl; as logo) {
+        <img class="assistant__logo" [src]="logo" alt="" />
+      }
+      <h1 class="assistant__title">{{ config()?.displayName ?? 'Önkormányzati Ügysegéd' }}</h1>
+    </header>
+  }
 
   @if (configError(); as err) {
     <p class="assistant__banner">{{ err }}</p>
