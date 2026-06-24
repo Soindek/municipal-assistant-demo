@@ -6,6 +6,7 @@ export interface UiConfig {
   displayName: string;
   locale: string;
   branding: {
+    assistantName: string;
     welcomeMessage: string;
     disclaimer: string;
     primaryColor: string | null;

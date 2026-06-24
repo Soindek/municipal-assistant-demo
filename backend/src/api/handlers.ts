@@ -54,6 +54,7 @@ export function createConfigHandler(deps: ApiDeps): RequestHandler {
       displayName: config.displayName,
       locale: config.locale,
       branding: {
+        assistantName: config.branding.assistantName,
         welcomeMessage: config.branding.welcomeMessage,
         disclaimer: config.branding.disclaimer,
         primaryColor: config.branding.primaryColor ?? null,
@@ -77,8 +78,8 @@ export function createWidgetHandler(deps: ApiDeps): RequestHandler {
     const appOrigin = `${req.protocol}://${req.get('host')}`;
     const script = buildWidgetScript({
       appOrigin,
-      title: config.displayName,
-      launcherLabel: 'Kérdése van?',
+      title: config.branding.assistantName,
+      launcherLabel: config.branding.assistantName,
       accent: config.branding.primaryColor ?? '#1e6fd0',
     });
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');

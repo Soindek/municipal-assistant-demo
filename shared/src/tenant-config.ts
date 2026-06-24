@@ -22,6 +22,10 @@ export interface TenantConfig {
   locale: string;
 
   branding: {
+    /** User-facing name of the assistant — used for the app header, the widget
+     *  launcher label, and the widget panel title (distinct from displayName,
+     *  which is the organisation's formal name). */
+    assistantName: string;
     logoUrl?: string;
     primaryColor?: string;
     /** Welcome message at the top of the chat. */

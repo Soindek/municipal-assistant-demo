@@ -11,8 +11,10 @@ export const vacratot: DeepPartial<TenantConfig> = {
   locale: 'hu-HU',
 
   branding: {
+    assistantName: 'Vácrátóti Ügysegéd',
+    primaryColor: 'rgb(126, 217, 87)',
     welcomeMessage:
-      'Üdvözlöm! Vácrátót hivatalos dokumentumai alapján segítek. Miben lehetek a segítségére?',
+      'Üdvözlöm! Vácrátót hivatalos dokumentumai (rendeletek, jegyzőkönyvek, szerződések) alapján segítek. Miben lehetek a segítségére?',
     disclaimer:
       'Ez tájékoztatás, nem hivatalos jogi tanács. Kérjük, ellenőrizze a megjelölt forrásban.',
   },

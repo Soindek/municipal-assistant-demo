@@ -8,7 +8,7 @@
       @if (config()?.branding?.logoUrl; as logo) {
         <img class="assistant__logo" [src]="logo" alt="" />
       }
-      <h1 class="assistant__title">{{ config()?.displayName ?? 'Önkormányzati Ügysegéd' }}</h1>
+      <h1 class="assistant__title">{{ config()?.branding?.assistantName ?? 'Önkormányzati Ügysegéd' }}</h1>
     </header>
   }
 
