@@ -1,0 +1,16 @@
+# Keep the build context small and free of secrets.
+.git
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.*
+!.env.example
+!.env.prod.example
+*.log
+data/uploads/*
+!data/uploads/.gitkeep
+data/ocr-cache
+.claude
+.vscode

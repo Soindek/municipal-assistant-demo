@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import express from 'express';
 import type { Express } from 'express';
+import { repoRoot } from '../paths.js';
 import type { ApiDeps } from './deps.js';
 import {
   createAskHandler,
@@ -31,6 +34,19 @@ export function createApp(deps: ApiDeps): Express {
   );
 
   app.post('/api/reindex', createReindexHandler(deps));
+
+  // Serve the built Angular UI when present (production single-container deploy:
+  // the backend serves the frontend). In local dev the frontend runs on its own
+  // dev server, so this directory doesn't exist and the block is skipped.
+  const frontendDir = join(repoRoot, 'frontend', 'dist', 'frontend', 'browser');
+  if (existsSync(frontendDir)) {
+    app.use(express.static(frontendDir));
+    // SPA fallback: any non-/api GET serves index.html (client-side routing).
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      res.sendFile(join(frontendDir, 'index.html'));
+    });
+  }
 
   return app;
 }
