@@ -182,18 +182,30 @@ megerősítésre vár — szándékosan nem találtunk ki indoklást.
 
 ---
 
-## 10. Deploy / hosting irány
+## 10. Deploy: Hetzner + Docker Compose + Caddy + GitHub Actions
 
-- **Döntés:** `> TODO: megerősítésre vár.` A repóban **nincs** deploy-artefaktum
-  (nincs `Dockerfile`, `Caddyfile` vagy `.github/workflows/`), és a BRIEF 12. pontja a
-  hostingot kifejezetten nyitott kérdésként sorolja fel.
-- **Kontextus:** A backend egy Node-szerver (Express, SSE), a frontend statikus Angular
-  build; el kell dönteni, hova kerülnek és milyen pipeline-nal.
-- **Miért:** `> TODO: indoklás megerősítése.` (A szóban felmerült irány **Hetzner + Docker
-  + Caddy + GitHub Actions**, de ennek a repóban egyelőre nincs nyoma — szándékosan nem
-  rögzítjük megvalósított döntésként.)
-- **Alternatíva:** `> TODO: a konkrét alternatívák a hosting-döntéssel együtt rögzítendők.`
-- **Státusz:** Halasztott.
+- **Döntés:** Egyetlen kicsi szerver (Hetzner CX22, Ubuntu) futtatja a stacket **Docker
+  Compose**-zal: **Caddy** (auto-HTTPS reverse proxy) + **backend** (Node; ugyanazon az
+  originen a buildelt Angular UI-t is kiszolgálja) + **db** (pgvector). CI/CD: a `main`-re
+  pusholás **GitHub Actions**-szal buildeli a backend image-et (a frontend bele van sütve),
+  felteszi a **GHCR**-re, majd SSH-n `pull` + `up -d` (lásd
+  [docker-compose.prod.yml](../docker-compose.prod.yml), [Caddyfile](../Caddyfile),
+  [backend/Dockerfile](../backend/Dockerfile), [deploy.yml](../.github/workflows/deploy.yml),
+  [DEPLOY.md](DEPLOY.md)).
+- **Kontextus:** A backend Node-szerver (Express, SSE), a frontend statikus Angular build; a
+  cél egy kicsi, olcsó VPS volt egyszerű üzemeltetéssel. (A BRIEF 12. pontja a hostingot nyitott
+  kérdésként sorolta; most megvalósítva.)
+- **Miért:** (a) Egy gép, egy `docker compose` — minimális mozgó alkatrész. (b) A Caddy
+  automatikus TLS-t ad, kézi tanúsítvány nélkül. (c) A backend szolgálja ki a buildelt
+  frontendet = egyetlen konténer/origin (nincs külön statikus host, nincs UI↔API CORS).
+  (d) **tsx-runtime:** az image közvetlenül futtatja a TS-backendet (+ a TS-forrás
+  workspace-csomagokat), így az egyetlen build-lépés az Angular-bundle. (e) A titkok KIZÁRÓLAG
+  a szerver-oldali `.env`-ben élnek (sosem verziózva); a DB a `db_data` kötetben perzisztens, és
+  a deploy csak `pull` + `up -d` — **soha nem `down -v`** (az kitörölné a betöltött korpuszt).
+- **Alternatíva:** (a) PaaS (Render/Fly/Railway) — egyszerűbb, de több költség/lock-in és
+  kevesebb kontroll hobbi-büdzsén. (b) Kubernetes — egyetlen tenantra súlyosan túltervezett.
+  (c) Külön statikus host a frontendnek — fölösleges extra origin + CORS, itt haszon nélkül.
+- **Státusz:** Megvalósítva (korábban halasztott).
 
 ---
 
@@ -263,3 +275,31 @@ megerősítésre vár — szándékosan nem találtunk ki indoklást.
   a válaszok helyesek (kommunális 12.000 Ft, építmény 220 Ft/m², telek), a kontrollok nem
   romlottak (ebtartás #1, tűzifa #3→#1, nagyterem —→#1). A `feat/retrieval-rerank` PR-t ez
   kiváltja (lezárandó).
+
+---
+
+## 14. Lebegő widget-beágyazás a sima inline iframe helyett
+
+- **Döntés:** A befogadó oldal **lebegő launcher-widgetként** ágyazza be a chatet
+  (Intercom/Crisp-stílus), egyetlen `<script src=".../widget.js" defer>`-rel, nem kézzel
+  elhelyezett inline iframe-mel. A backend egy önálló, függőség nélküli betöltőt szolgál ki a
+  `GET /widget.js`-en ([widget.ts](../backend/src/api/widget.ts) + `createWidgetHandler`); az app
+  a `?embed=widget`-et érzékelve kompakt, fill-height panel-elrendezésre vált.
+- **Kontextus:** A befogadó (`vacratotikozosseg.hu`, WordPress) **site-wide** beágyazást igényel,
+  ami nem lassítja az oldalbetöltést, és nem kell oldalanként kézzel iframe-et elhelyezni/méretezni.
+- **Miért:** (a) **Lusta:** az iframe csak az első megnyitáskor jön létre, így a befogadó oldal
+  kezdeti betöltése érintetlen. (b) **Egy sor, site-wide:** egyetlen szkript-tag egy fejléc/lábléc
+  pluginban — nincs oldalankénti markup. (c) **Önálló:** vanilla JS, semmilyen framework a
+  befogadón, névteres (`maw-`) stílusok és nagyon magas `z-index` — minimális ütközés a befogadó
+  témájával. (d) **Originből származtatott:** az iframe origin a szkript saját kéréséből jön, így
+  ugyanaz a build bármely deployon működik; a cím/szín a `TenantConfig`-ból. (e) **Akadálymentes:**
+  `aria-label`-ek, Esc-re zárás, fókusz-visszaadás, responzív (desktop panel, mobilon teljes
+  képernyős), és egy diszkrét, egyszeri üdvözlő-buborék, ami sosem nyit ki agresszíven.
+- **Alternatíva:** (a) Inline iframe `postMessage` auto-heighttel (a korábbi beágyazás) —
+  oldalankénti elhelyezést igényel és nyújtja az oldalt; kiváltva. (b) Web-component / framework
+  widget — nehezebb függőség a befogadón. (c) Shadow DOM izoláció — erősebb stílus-izoláció, de
+  egy injektált `<style>` + névtér elég a WordPresshez és egyszerűbb.
+- **Státusz:** Érvényes. A beágyazást továbbra is a `TenantConfig.embed.allowedOrigins` (apex +
+  www) kapuzza, ami a CORS-t és a CSP `frame-ancestors`-t is vezérli; feltételezi, hogy a befogadó
+  oldalnak nincs olyan CSP-je, ami blokkolná a cross-origin szkriptet / inline stílust (WordPressnél
+  ritka).
