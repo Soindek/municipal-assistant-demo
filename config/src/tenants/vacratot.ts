@@ -18,7 +18,7 @@ export const vacratot: DeepPartial<TenantConfig> = {
     // The § (section sign) fits a decrees-focused assistant.
     launcherIcon: '§',
     welcomeMessage:
-      'Üdvözlöm! Vácrátót hivatalos dokumentumai (rendeletek, jegyzőkönyvek, szerződések) alapján segítek. Miben lehetek a segítségére?',
+      'Üdvözlöm! Vácrátót hivatalos dokumentumai (rendeletek, jegyzőkönyvek, szerződések) alapján dolgozom. Miben lehetek a segítségére?',
     disclaimer:
       'Ez tájékoztatás, nem hivatalos jogi tanács. Kérjük, ellenőrizze a megjelölt forrásban.',
   },
