@@ -1,3 +1,4 @@
+import type { Source } from '@municipal-assistant/shared';
 import type { Pool } from 'pg';
 import { getPool } from '../pool.js';
 
@@ -8,6 +9,8 @@ export interface QueryLogInput {
   answer: string;
   /** chunks.id values returned by retrieval (empty for the "I don't know" path). */
   retrievedChunkIds: string[];
+  /** The sources the answer actually cited (what the user sees as "Források"). */
+  sources: Source[];
 }
 
 /**
@@ -20,10 +23,16 @@ export async function insertQueryLog(
   pool: Pool = getPool(),
 ): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO query_log (question, rewritten_query, answer, retrieved_chunk_ids)
-     VALUES ($1, $2, $3, $4::bigint[])
+    `INSERT INTO query_log (question, rewritten_query, answer, retrieved_chunk_ids, sources)
+     VALUES ($1, $2, $3, $4::bigint[], $5::jsonb)
      RETURNING id`,
-    [input.question, input.rewrittenQuery, input.answer, input.retrievedChunkIds],
+    [
+      input.question,
+      input.rewrittenQuery,
+      input.answer,
+      input.retrievedChunkIds,
+      JSON.stringify(input.sources),
+    ],
   );
   return String(rows[0]!.id);
 }
@@ -55,7 +64,10 @@ export interface QueryLogRow {
   answer: string | null;
   feedback: number | null;
   feedbackComment: string | null;
-  retrievedChunkIds: string[];
+  /** The sources the answer cited. */
+  sources: Source[];
+  /** Distinct document titles of the retrieved (rerank-window) chunks — diagnostic. */
+  retrievedDocTitles: string[];
 }
 
 /** Most recent query_log rows, newest first — for manual review / export. */
@@ -64,10 +76,13 @@ export async function listRecentQueryLog(
   pool: Pool = getPool(),
 ): Promise<QueryLogRow[]> {
   const { rows } = await pool.query(
-    `SELECT id, created_at, question, rewritten_query, answer,
-            feedback, feedback_comment, retrieved_chunk_ids
-       FROM query_log
-      ORDER BY created_at DESC
+    `SELECT q.id, q.created_at, q.question, q.rewritten_query, q.answer,
+            q.feedback, q.feedback_comment, q.sources,
+            (SELECT array_agg(DISTINCT d.title ORDER BY d.title)
+               FROM chunks c JOIN documents d ON d.id = c.document_id
+              WHERE c.id = ANY(q.retrieved_chunk_ids)) AS retrieved_titles
+       FROM query_log q
+      ORDER BY q.created_at DESC
       LIMIT $1`,
     [limit],
   );
@@ -79,6 +94,7 @@ export async function listRecentQueryLog(
     answer: r.answer as string | null,
     feedback: r.feedback as number | null,
     feedbackComment: r.feedback_comment as string | null,
-    retrievedChunkIds: ((r.retrieved_chunk_ids as string[] | null) ?? []).map(String),
+    sources: ((r.sources as Source[] | null) ?? []),
+    retrievedDocTitles: ((r.retrieved_titles as string[] | null) ?? []),
   }));
 }

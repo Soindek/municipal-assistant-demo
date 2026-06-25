@@ -192,6 +192,7 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
           rewrittenQuery: searchQuery,
           answer: NO_ANSWER,
           retrievedChunkIds: [],
+          sources: [],
         });
         sendEvent(res, { type: 'done', queryId: noAnswerId });
         res.end();
@@ -208,12 +209,14 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
       );
       // Cite only the sources the answer actually used (deduped by document).
       const usedChunks = await selectUsedChunks(llm.chat, answer, chunks, ac.signal);
-      sendEvent(res, { type: 'sources', sources: buildSources(usedChunks) });
+      const sources = buildSources(usedChunks);
+      sendEvent(res, { type: 'sources', sources });
       const queryId = await logQuery({
         question,
         rewrittenQuery: searchQuery,
         answer,
         retrievedChunkIds: chunks.map((c) => c.chunkId),
+        sources,
       });
       sendEvent(res, { type: 'done', queryId });
       res.end();
