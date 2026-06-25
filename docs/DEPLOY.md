@@ -67,4 +67,7 @@ both CORS and the CSP `frame-ancestors` that allows the iframe). The app detects
 
 - **Logs:** `docker compose -f docker-compose.prod.yml logs -f backend`
 - **Scheduled ingestion:** a server cron running `docker compose -f docker-compose.prod.yml run --rm backend npm run reindex`
+- **Quality review:** export recent questions + answers + 👍/👎 feedback to CSV —
+  `docker compose -f docker-compose.prod.yml run --rm backend npm run querylog > querylog.csv`
+  (optional row limit, e.g. `... npm run querylog -- 1000`). Open in Excel/Sheets to label correctness.
 - **Backups:** daily `pg_dump` and/or Hetzner backups.

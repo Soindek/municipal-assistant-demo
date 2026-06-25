@@ -27,6 +27,16 @@ export class AssistantApi {
     return (await res.json()) as UiConfig;
   }
 
+  /** Records 👍/👎 feedback for a logged answer (referenced by its queryId). */
+  async sendFeedback(queryId: string, rating: 'up' | 'down', comment?: string): Promise<void> {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queryId, rating, comment }),
+    });
+    if (!res.ok) throw new Error(`Feedback request failed (${res.status})`);
+  }
+
   /**
    * Streams the answer from POST /api/ask. The endpoint returns SSE, but since
    * it is a POST we consume the body as a ReadableStream and parse `data:` frames

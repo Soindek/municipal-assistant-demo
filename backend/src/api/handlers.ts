@@ -1,7 +1,11 @@
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { getPool } from '../db/pool.js';
-import { insertQueryLog, type QueryLogInput } from '../db/repositories/query-log.js';
+import {
+  insertQueryLog,
+  setQueryFeedback,
+  type QueryLogInput,
+} from '../db/repositories/query-log.js';
 import { run } from '../ingestion/run.js';
 import { consoleLogger } from '../logger.js';
 import {
@@ -36,11 +40,17 @@ function dedupeByChunkId<T extends { chunkId: string }>(chunks: T[]): T[] {
   });
 }
 
-/** Fire-and-forget query logging; never breaks the response on failure. */
-function logQuery(entry: QueryLogInput): void {
-  void insertQueryLog(entry).catch((err) =>
-    consoleLogger.warn(`query_log insert failed: ${(err as Error).message}`),
-  );
+/**
+ * Logs the query and returns its id (for attaching feedback), or null if the
+ * insert fails — logging never breaks the response.
+ */
+async function logQuery(entry: QueryLogInput): Promise<string | null> {
+  try {
+    return await insertQueryLog(entry);
+  } catch (err) {
+    consoleLogger.warn(`query_log insert failed: ${(err as Error).message}`);
+    return null;
+  }
 }
 
 /**
@@ -169,14 +179,14 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
       if (windowChunks.length === 0 || bestSimilarity < config.rag.minScore) {
         sendEvent(res, { type: 'token', text: NO_ANSWER });
         sendEvent(res, { type: 'sources', sources: [] });
-        sendEvent(res, { type: 'done' });
-        res.end();
-        logQuery({
+        const noAnswerId = await logQuery({
           question,
           rewrittenQuery: searchQuery,
           answer: NO_ANSWER,
           retrievedChunkIds: [],
         });
+        sendEvent(res, { type: 'done', queryId: noAnswerId });
+        res.end();
         return;
       }
 
@@ -191,14 +201,14 @@ export function createAskHandler(deps: ApiDeps): RequestHandler {
       // Cite only the sources the answer actually used (deduped by document).
       const usedChunks = await selectUsedChunks(llm.chat, answer, chunks, ac.signal);
       sendEvent(res, { type: 'sources', sources: buildSources(usedChunks) });
-      sendEvent(res, { type: 'done' });
-      res.end();
-      logQuery({
+      const queryId = await logQuery({
         question,
         rewrittenQuery: searchQuery,
         answer,
         retrievedChunkIds: chunks.map((c) => c.chunkId),
       });
+      sendEvent(res, { type: 'done', queryId });
+      res.end();
     } catch (err) {
       if (!ac.signal.aborted) {
         sendEvent(res, { type: 'error', message: (err as Error).message });
@@ -225,6 +235,37 @@ export function createReindexHandler(deps: ApiDeps): RequestHandler {
       res.json({ ok: true, stats });
     } catch (err) {
       res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  };
+}
+
+/**
+ * POST /api/feedback — records 👍/👎 (and an optional short comment) for a
+ * previously logged answer, referenced by the queryId from the `done` event.
+ */
+export function createFeedbackHandler(): RequestHandler {
+  const BodySchema = z.object({
+    queryId: z.string().regex(/^\d+$/, 'Invalid queryId'),
+    rating: z.enum(['up', 'down']),
+    comment: z.string().trim().max(500).optional(),
+  });
+  return async (req, res) => {
+    const parsed = BodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid request' });
+      return;
+    }
+    const { queryId, rating, comment } = parsed.data;
+    try {
+      const ok = await setQueryFeedback(queryId, rating === 'up' ? 1 : -1, comment ?? null);
+      if (!ok) {
+        res.status(404).json({ error: 'Unknown queryId' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      consoleLogger.warn(`feedback update failed: ${(err as Error).message}`);
+      res.status(500).json({ ok: false });
     }
   };
 }

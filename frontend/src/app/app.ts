@@ -27,6 +27,9 @@ interface UiMessage {
   sources: WritableSignal<Source[]>;
   pending: WritableSignal<boolean>;
   error: WritableSignal<string | null>;
+  /** query_log id of this answer (assistant only) — needed to attach feedback. */
+  queryId: WritableSignal<string | null>;
+  feedback: WritableSignal<'up' | 'down' | null>;
 }
 
 @Component({
@@ -121,6 +124,7 @@ export class App {
         } else if (ev.type === 'error') {
           assistant.error.set(ev.message);
         } else if (ev.type === 'done') {
+          assistant.queryId.set(ev.queryId ?? null);
           break;
         }
       }
@@ -142,6 +146,20 @@ export class App {
       sources: signal<Source[]>([]),
       pending: signal(false),
       error: signal<string | null>(null),
+      queryId: signal<string | null>(null),
+      feedback: signal<'up' | 'down' | null>(null),
     };
+  }
+
+  /** Records 👍/👎 on an answer; optimistic, reverts if the request fails. */
+  protected async onFeedback(m: UiMessage, rating: 'up' | 'down'): Promise<void> {
+    const id = m.queryId();
+    if (!id || m.feedback()) return; // need a logged id; ignore a second vote
+    m.feedback.set(rating);
+    try {
+      await this.api.sendFeedback(id, rating);
+    } catch {
+      m.feedback.set(null); // let the user try again
+    }
   }
 }

@@ -25,5 +25,12 @@ export interface AskRequest {
 export type AskEvent =
   | { type: 'token'; text: string } // partial answer text
   | { type: 'sources'; sources: Source[] } // the answer's sources (at the end)
-  | { type: 'done' }
+  | { type: 'done'; queryId?: string | null } // queryId: for attaching 👍/👎 feedback
   | { type: 'error'; message: string };
+
+/** POST /api/feedback body — 👍/👎 on a logged answer (referenced by queryId). */
+export interface FeedbackRequest {
+  queryId: string;
+  rating: 'up' | 'down';
+  comment?: string;
+}

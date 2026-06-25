@@ -8,6 +8,9 @@ build/
 *.log
 .DS_Store
 
+# Local-only notes (private roadmap etc.) — never uploaded.
+*.local.md
+
 # Don't version the uploads directory contents, but keep the directory.
 data/uploads/*
 !data/uploads/.gitkeep

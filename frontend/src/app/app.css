@@ -151,6 +151,29 @@
   text-decoration: underline;
 }
 
+.feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.feedback__btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 1px 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.feedback__btn:hover {
+  background: var(--assistant-bg);
+}
+
 .composer {
   display: flex;
   flex-direction: column;

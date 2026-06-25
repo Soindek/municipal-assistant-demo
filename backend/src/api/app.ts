@@ -7,6 +7,7 @@ import type { ApiDeps } from './deps.js';
 import {
   createAskHandler,
   createConfigHandler,
+  createFeedbackHandler,
   createHealthHandler,
   createReindexHandler,
   createWidgetHandler,
@@ -32,6 +33,13 @@ export function createApp(deps: ApiDeps): Express {
     '/api/ask',
     rateLimit(deps.config.limits.requestsPerMinutePerIp),
     createAskHandler(deps),
+  );
+
+  // 👍/👎 feedback on an answer (IP rate-limited like /api/ask).
+  app.post(
+    '/api/feedback',
+    rateLimit(deps.config.limits.requestsPerMinutePerIp),
+    createFeedbackHandler(),
   );
 
   app.post('/api/reindex', createReindexHandler(deps));

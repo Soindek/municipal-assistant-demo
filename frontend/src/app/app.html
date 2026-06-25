@@ -53,6 +53,18 @@
             </ul>
           </div>
         }
+
+        @if (m.role === 'assistant' && m.queryId() && !m.pending() && !m.error()) {
+          <div class="feedback">
+            @if (m.feedback()) {
+              <span class="feedback__thanks">Köszönjük a visszajelzést!</span>
+            } @else {
+              <span class="feedback__label">Hasznos volt a válasz?</span>
+              <button type="button" class="feedback__btn" aria-label="Hasznos" (click)="onFeedback(m, 'up')">👍</button>
+              <button type="button" class="feedback__btn" aria-label="Nem volt hasznos" (click)="onFeedback(m, 'down')">👎</button>
+            }
+          </div>
+        }
       </article>
     }
   </section>
