@@ -123,9 +123,14 @@
   @if (config(); as cfg) {
     <footer class="assistant__disclaimer">
       {{ cfg.branding.disclaimer }}
-      @if (cfg.branding.attribution) {
-        <span class="assistant__attribution">{{ cfg.branding.attribution }}</span>
-      }
+      <span class="assistant__attribution">
+        @if (cfg.branding.attribution) {<span>{{ cfg.branding.attribution }}</span>}
+        @if (cfg.branding.contactEmail) {
+          <span> · Kapcsolat: <a [href]="'mailto:' + cfg.branding.contactEmail">{{ cfg.branding.contactEmail }}</a></span>
+        }
+        @if (cfg.version) {<span> · v{{ cfg.version }}</span>}
+        @if (cfg.branding.versionBadge) {<span class="assistant__badge">{{ cfg.branding.versionBadge }}</span>}
+      </span>
     </footer>
   }
 </main>

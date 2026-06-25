@@ -22,6 +22,8 @@ export const tenantConfigSchema = z.object({
     welcomeMessage: z.string().min(1),
     disclaimer: z.string().min(1),
     attribution: z.string().optional(),
+    contactEmail: z.string().email().optional(),
+    versionBadge: z.string().optional(),
   }),
 
   embed: z.object({

@@ -5,11 +5,14 @@ import type { AskEvent, ChatTurn } from '@municipal-assistant/shared';
 export interface UiConfig {
   displayName: string;
   locale: string;
+  version: string;
   branding: {
     assistantName: string;
     welcomeMessage: string;
     disclaimer: string;
     attribution: string | null;
+    contactEmail: string | null;
+    versionBadge: string | null;
     primaryColor: string | null;
     onPrimaryColor: string | null;
     logoUrl: string | null;

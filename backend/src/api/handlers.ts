@@ -17,6 +17,7 @@ import {
   selectUsedChunks,
 } from '../retrieval/prompt.js';
 import { authoritativeShortlist, hybridSearch } from '../retrieval/search.js';
+import { appVersion } from '../version.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
 import { buildWidgetScript } from './widget.js';
@@ -63,11 +64,14 @@ export function createConfigHandler(deps: ApiDeps): RequestHandler {
     res.json({
       displayName: config.displayName,
       locale: config.locale,
+      version: appVersion(),
       branding: {
         assistantName: config.branding.assistantName,
         welcomeMessage: config.branding.welcomeMessage,
         disclaimer: config.branding.disclaimer,
         attribution: config.branding.attribution ?? null,
+        contactEmail: config.branding.contactEmail ?? null,
+        versionBadge: config.branding.versionBadge ?? null,
         primaryColor: config.branding.primaryColor ?? null,
         onPrimaryColor: config.branding.onPrimaryColor ?? null,
         logoUrl: config.branding.logoUrl ?? null,
@@ -109,6 +113,7 @@ export function createHealthHandler(deps: ApiDeps): RequestHandler {
       await getPool().query('SELECT 1');
       res.json({
         status: 'ok',
+        version: appVersion(),
         tenant: deps.config.tenantId,
         chatModel: deps.config.rag.chatModel,
       });

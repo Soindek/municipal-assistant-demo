@@ -18,7 +18,9 @@ export const defaultConfig: DeepPartial<TenantConfig> = {
       'Üdvözlöm! A település hivatalos dokumentumai alapján dolgozom. Miben lehetek a segítségére?',
     disclaimer:
       'Ez tájékoztatás, nem hivatalos jogi tanács. Kérjük, ellenőrizze a megjelölt forrásban.',
-    attribution: 'Fejlesztő: Copodium Kft. — minden jog fenntartva · Kapcsolat: info@sigmoit.com',
+    attribution: 'Fejlesztő: Copodium Kft. — minden jog fenntartva',
+    contactEmail: 'info@sigmoit.com',
+    versionBadge: 'BETA',
   },
 
   embed: {
