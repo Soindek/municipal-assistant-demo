@@ -27,6 +27,12 @@ interface UiMessage {
   sources: WritableSignal<Source[]>;
   pending: WritableSignal<boolean>;
   error: WritableSignal<string | null>;
+  /** query_log id of this answer (assistant only) — needed to attach feedback. */
+  queryId: WritableSignal<string | null>;
+  feedback: WritableSignal<'up' | 'down' | null>;
+  /** Optional free-text comment shown after a 👎 vote. */
+  commentDraft: WritableSignal<string>;
+  commentDone: WritableSignal<boolean>;
 }
 
 @Component({
@@ -52,6 +58,16 @@ export class App {
     typeof window !== 'undefined' &&
       new URLSearchParams(window.location.search).get('embed') === 'widget',
   );
+
+  /** "BETA · v0.1.0" shown next to the title (badge + package.json version). */
+  protected readonly versionLabel = computed(() => {
+    const cfg = this.config();
+    if (!cfg) return '';
+    const parts: string[] = [];
+    if (cfg.branding.versionBadge) parts.push(cfg.branding.versionBadge);
+    if (cfg.version) parts.push(`v${cfg.version}`);
+    return parts.join(' · ');
+  });
 
   protected readonly maxChars = computed(() => this.config()?.limits.maxQuestionChars ?? 1000);
   protected readonly remaining = computed(() => this.maxChars() - this.draft().length);
@@ -121,6 +137,7 @@ export class App {
         } else if (ev.type === 'error') {
           assistant.error.set(ev.message);
         } else if (ev.type === 'done') {
+          assistant.queryId.set(ev.queryId ?? null);
           break;
         }
       }
@@ -142,6 +159,45 @@ export class App {
       sources: signal<Source[]>([]),
       pending: signal(false),
       error: signal<string | null>(null),
+      queryId: signal<string | null>(null),
+      feedback: signal<'up' | 'down' | null>(null),
+      commentDraft: signal(''),
+      commentDone: signal(false),
     };
+  }
+
+  /** Records 👍/👎 on an answer; optimistic, reverts if the request fails.
+   *  After 👎 the template reveals an optional comment box. */
+  protected async onFeedback(m: UiMessage, rating: 'up' | 'down'): Promise<void> {
+    const id = m.queryId();
+    if (!id || m.feedback()) return; // need a logged id; ignore a second vote
+    m.feedback.set(rating);
+    try {
+      await this.api.sendFeedback(id, rating);
+    } catch {
+      m.feedback.set(null); // let the user try again
+    }
+  }
+
+  /** Enter sends the comment; Shift+Enter inserts a newline. */
+  protected onCommentKeydown(event: KeyboardEvent, m: UiMessage): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void this.submitComment(m);
+    }
+  }
+
+  /** Sends the optional 👎 comment (re-records the same rating with the text). */
+  protected async submitComment(m: UiMessage): Promise<void> {
+    const id = m.queryId();
+    const rating = m.feedback();
+    const comment = m.commentDraft().trim();
+    if (!id || !rating || !comment || m.commentDone()) return;
+    m.commentDone.set(true); // optimistic
+    try {
+      await this.api.sendFeedback(id, rating, comment);
+    } catch {
+      m.commentDone.set(false); // let the user try again
+    }
   }
 }

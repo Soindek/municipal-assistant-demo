@@ -37,6 +37,13 @@ export interface TenantConfig {
     welcomeMessage: string;
     /** Legal disclaimer (always visible / on every answer). */
     disclaimer: string;
+    /** Developer/copyright attribution line shown under the disclaimer.
+     *  Product-wide (same developer for every tenant); set in default.ts. */
+    attribution?: string;
+    /** Contact email rendered as a mailto link next to the attribution. */
+    contactEmail?: string;
+    /** Small release-stage badge next to the version (e.g. "BETA"). Omit at 1.0. */
+    versionBadge?: string;
   };
 
   embed: {

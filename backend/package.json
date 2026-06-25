@@ -11,7 +11,8 @@
     "seed": "tsx src/ingestion/run.ts --source=manual-upload",
     "reindex": "tsx src/ingestion/run.ts",
     "recategorize": "tsx src/ingestion/recategorize.ts",
-    "reembed": "tsx src/ingestion/reembed.ts"
+    "reembed": "tsx src/ingestion/reembed.ts",
+    "querylog": "tsx src/db/export-querylog.ts"
   },
   "dependencies": {
     "@municipal-assistant/config": "*",

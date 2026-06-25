@@ -454,7 +454,7 @@ export const vacratot: TenantConfig = {
 
   branding: {
     welcomeMessage:
-      'Üdvözlöm! Vácrátót hivatalos dokumentumai alapján segítek. Miben lehetek a segítségére?',
+      'Üdvözlöm! Vácrátót hivatalos dokumentumai alapján dolgozom. Miben lehetek a segítségére?',
     disclaimer:
       'Ez tájékoztatás, nem hivatalos jogi tanács. Kérjük, ellenőrizze a megjelölt forrásban.',
   },

@@ -5,10 +5,14 @@ import type { AskEvent, ChatTurn } from '@municipal-assistant/shared';
 export interface UiConfig {
   displayName: string;
   locale: string;
+  version: string;
   branding: {
     assistantName: string;
     welcomeMessage: string;
     disclaimer: string;
+    attribution: string | null;
+    contactEmail: string | null;
+    versionBadge: string | null;
     primaryColor: string | null;
     onPrimaryColor: string | null;
     logoUrl: string | null;
@@ -25,6 +29,16 @@ export class AssistantApi {
     const res = await fetch('/api/config');
     if (!res.ok) throw new Error(`Config request failed (${res.status})`);
     return (await res.json()) as UiConfig;
+  }
+
+  /** Records 👍/👎 feedback for a logged answer (referenced by its queryId). */
+  async sendFeedback(queryId: string, rating: 'up' | 'down', comment?: string): Promise<void> {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queryId, rating, comment }),
+    });
+    if (!res.ok) throw new Error(`Feedback request failed (${res.status})`);
   }
 
   /**
