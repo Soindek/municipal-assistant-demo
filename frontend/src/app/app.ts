@@ -30,6 +30,9 @@ interface UiMessage {
   /** query_log id of this answer (assistant only) — needed to attach feedback. */
   queryId: WritableSignal<string | null>;
   feedback: WritableSignal<'up' | 'down' | null>;
+  /** Optional free-text comment shown after a 👎 vote. */
+  commentDraft: WritableSignal<string>;
+  commentDone: WritableSignal<boolean>;
 }
 
 @Component({
@@ -148,10 +151,13 @@ export class App {
       error: signal<string | null>(null),
       queryId: signal<string | null>(null),
       feedback: signal<'up' | 'down' | null>(null),
+      commentDraft: signal(''),
+      commentDone: signal(false),
     };
   }
 
-  /** Records 👍/👎 on an answer; optimistic, reverts if the request fails. */
+  /** Records 👍/👎 on an answer; optimistic, reverts if the request fails.
+   *  After 👎 the template reveals an optional comment box. */
   protected async onFeedback(m: UiMessage, rating: 'up' | 'down'): Promise<void> {
     const id = m.queryId();
     if (!id || m.feedback()) return; // need a logged id; ignore a second vote
@@ -160,6 +166,20 @@ export class App {
       await this.api.sendFeedback(id, rating);
     } catch {
       m.feedback.set(null); // let the user try again
+    }
+  }
+
+  /** Sends the optional 👎 comment (re-records the same rating with the text). */
+  protected async submitComment(m: UiMessage): Promise<void> {
+    const id = m.queryId();
+    const rating = m.feedback();
+    const comment = m.commentDraft().trim();
+    if (!id || !rating || !comment || m.commentDone()) return;
+    m.commentDone.set(true); // optimistic
+    try {
+      await this.api.sendFeedback(id, rating, comment);
+    } catch {
+      m.commentDone.set(false); // let the user try again
     }
   }
 }

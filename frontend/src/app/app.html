@@ -56,12 +56,40 @@
 
         @if (m.role === 'assistant' && m.queryId() && !m.pending() && !m.error()) {
           <div class="feedback">
-            @if (m.feedback()) {
-              <span class="feedback__thanks">Köszönjük a visszajelzést!</span>
-            } @else {
+            @if (!m.feedback()) {
               <span class="feedback__label">Hasznos volt a válasz?</span>
               <button type="button" class="feedback__btn" aria-label="Hasznos" (click)="onFeedback(m, 'up')">👍</button>
               <button type="button" class="feedback__btn" aria-label="Nem volt hasznos" (click)="onFeedback(m, 'down')">👎</button>
+            } @else if (m.feedback() === 'down' && !m.commentDone()) {
+              <div class="feedback__comment">
+                <label class="feedback__label" [attr.for]="'fb-' + $index">
+                  Köszönjük! Mi volt a baj? (opcionális)
+                </label>
+                <textarea
+                  class="feedback__input"
+                  [id]="'fb-' + $index"
+                  rows="2"
+                  maxlength="500"
+                  placeholder="Pl. rossz forrást idézett, vagy hiányos a válasz…"
+                  [ngModel]="m.commentDraft()"
+                  (ngModelChange)="m.commentDraft.set($event)"
+                ></textarea>
+                <div class="feedback__actions">
+                  <button
+                    type="button"
+                    class="feedback__send"
+                    [disabled]="!m.commentDraft().trim()"
+                    (click)="submitComment(m)"
+                  >
+                    Küldés
+                  </button>
+                  <button type="button" class="feedback__skip" (click)="m.commentDone.set(true)">
+                    Kihagyom
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <span class="feedback__thanks">Köszönjük a visszajelzést!</span>
             }
           </div>
         }
