@@ -73,6 +73,7 @@
                   placeholder="Pl. rossz forrást idézett, vagy hiányos a válasz…"
                   [ngModel]="m.commentDraft()"
                   (ngModelChange)="m.commentDraft.set($event)"
+                  (keydown)="onCommentKeydown($event, m)"
                 ></textarea>
                 <div class="feedback__actions">
                   <button

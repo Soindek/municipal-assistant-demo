@@ -169,6 +169,14 @@ export class App {
     }
   }
 
+  /** Enter sends the comment; Shift+Enter inserts a newline. */
+  protected onCommentKeydown(event: KeyboardEvent, m: UiMessage): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void this.submitComment(m);
+    }
+  }
+
   /** Sends the optional 👎 comment (re-records the same rating with the text). */
   protected async submitComment(m: UiMessage): Promise<void> {
     const id = m.queryId();
