@@ -9,6 +9,7 @@ import {
   createConfigHandler,
   createHealthHandler,
   createReindexHandler,
+  createWidgetHandler,
 } from './handlers.js';
 import { corsAndCsp, rateLimit } from './middleware.js';
 
@@ -34,6 +35,10 @@ export function createApp(deps: ApiDeps): Express {
   );
 
   app.post('/api/reindex', createReindexHandler(deps));
+
+  // Embeddable floating-launcher loader for host pages (registered before the
+  // SPA fallback so it isn't shadowed by index.html).
+  app.get('/widget.js', createWidgetHandler(deps));
 
   // Serve the built Angular UI when present (production single-container deploy:
   // the backend serves the frontend). In local dev the frontend runs on its own

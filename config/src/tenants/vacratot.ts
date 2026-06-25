@@ -11,14 +11,22 @@ export const vacratot: DeepPartial<TenantConfig> = {
   locale: 'hu-HU',
 
   branding: {
+    assistantName: 'Vácrátóti Ügysegéd',
+    primaryColor: 'rgb(126, 217, 87)',
+    // Dark text on the light green for readable contrast.
+    onPrimaryColor: '#14391f',
+    // The § (section sign) fits a decrees-focused assistant.
+    launcherIcon: '§',
     welcomeMessage:
-      'Üdvözlöm! Vácrátót hivatalos dokumentumai alapján segítek. Miben lehetek a segítségére?',
+      'Üdvözlöm! Vácrátót hivatalos dokumentumai (rendeletek, jegyzőkönyvek, szerződések) alapján segítek. Miben lehetek a segítségére?',
     disclaimer:
       'Ez tájékoztatás, nem hivatalos jogi tanács. Kérjük, ellenőrizze a megjelölt forrásban.',
   },
 
   embed: {
-    allowedOrigins: ['https://vacratotikozosseg.hu'],
+    // The host site (apex + www) where the floating widget is embedded. Drives
+    // both CORS and the CSP frame-ancestors that lets the iframe load there.
+    allowedOrigins: ['https://vacratotikozosseg.hu', 'https://www.vacratotikozosseg.hu'],
   },
 
   // Taxonomy mirrors the curated Document Library Pro folders on vacratot.hu.

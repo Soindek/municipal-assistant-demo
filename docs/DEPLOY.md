@@ -48,6 +48,21 @@ secrets: `SSH_HOST`, `SSH_USER`, `SSH_KEY` (a dedicated deploy key), `GHCR_PAT`
 > ⚠️ The deploy script is intentionally only `pull` + `up -d` — never `down -v`
 > or rebuilding `db`, which would delete the `db_data` volume (all indexed documents).
 
+## Embedding the chat widget
+
+The backend serves a self-contained loader at `/widget.js`. Add this one line to
+the host site (e.g. a WordPress header/footer script plugin, site-wide):
+
+```html
+<script src="https://ugyseged.vacratotikozosseg.hu/widget.js" defer></script>
+```
+
+It renders a floating launcher (bottom-right) that opens a panel with the chat in
+an iframe — created lazily on first open, so it never slows the host page's load.
+The host origin must be listed in `TenantConfig.embed.allowedOrigins` (it drives
+both CORS and the CSP `frame-ancestors` that allows the iframe). The app detects
+`?embed=widget` and switches to the compact panel layout.
+
 ## Operations
 
 - **Logs:** `docker compose -f docker-compose.prod.yml logs -f backend`

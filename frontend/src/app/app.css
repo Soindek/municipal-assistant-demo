@@ -1,15 +1,19 @@
 :host {
   display: block;
+  height: 100%;
   --accent: #1e6fd0;
+  --on-accent: #ffffff;
   --bg: #ffffff;
-  --user-bg: var(--accent);
   --assistant-bg: #f1f3f5;
   --text: #1a1a1a;
   --muted: #6b7280;
   --border: #e5e7eb;
 }
 
+/* Fill-height chat: header + scrollable messages + pinned composer. Works both
+   full-page (standalone) and inside the small widget panel. */
 .assistant {
+  height: 100%;
   max-width: 720px;
   margin: 0 auto;
   padding: 16px;
@@ -17,6 +21,14 @@
   flex-direction: column;
   gap: 12px;
   box-sizing: border-box;
+}
+
+/* Compact variant for the floating widget panel (no max-width, tighter spacing;
+   the widget supplies the title bar so the in-app header is hidden). */
+.assistant--embedded {
+  max-width: none;
+  padding: 12px;
+  gap: 10px;
 }
 
 .assistant__header {
@@ -48,6 +60,9 @@
 }
 
 .messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -79,8 +94,8 @@
 }
 
 .msg--user .msg__bubble {
-  background: var(--user-bg);
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   border-bottom-right-radius: 4px;
 }
 
@@ -174,7 +189,7 @@
 
 .composer__send {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: 8px;
   padding: 8px 18px;

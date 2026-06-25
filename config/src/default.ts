@@ -12,6 +12,8 @@ export const defaultConfig: DeepPartial<TenantConfig> = {
   locale: 'hu-HU',
 
   branding: {
+    assistantName: 'Önkormányzati Ügysegéd',
+    launcherIcon: '§',
     welcomeMessage:
       'Üdvözlöm! A település hivatalos dokumentumai alapján segítek. Miben lehetek a segítségére?',
     disclaimer:

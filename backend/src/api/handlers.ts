@@ -15,6 +15,7 @@ import {
 import { authoritativeShortlist, hybridSearch } from '../retrieval/search.js';
 import type { ApiDeps } from './deps.js';
 import { initSse, sendEvent } from './sse.js';
+import { buildWidgetScript } from './widget.js';
 
 /** Fallback answer when retrieval finds nothing good enough (BRIEF point 8). */
 const NO_ANSWER =
@@ -53,15 +54,40 @@ export function createConfigHandler(deps: ApiDeps): RequestHandler {
       displayName: config.displayName,
       locale: config.locale,
       branding: {
+        assistantName: config.branding.assistantName,
         welcomeMessage: config.branding.welcomeMessage,
         disclaimer: config.branding.disclaimer,
         primaryColor: config.branding.primaryColor ?? null,
+        onPrimaryColor: config.branding.onPrimaryColor ?? null,
         logoUrl: config.branding.logoUrl ?? null,
       },
       limits: {
         maxQuestionChars: config.limits.maxQuestionChars,
       },
     });
+  };
+}
+
+/**
+ * GET /widget.js — the embeddable floating-launcher loader (see widget.ts).
+ * Self-contained vanilla JS; the app origin is derived from the request so it
+ * works in any deployment, and the title/accent come from the tenant config.
+ */
+export function createWidgetHandler(deps: ApiDeps): RequestHandler {
+  const { config } = deps;
+  return (req, res) => {
+    const appOrigin = `${req.protocol}://${req.get('host')}`;
+    const script = buildWidgetScript({
+      appOrigin,
+      title: config.branding.assistantName,
+      launcherLabel: config.branding.assistantName,
+      accent: config.branding.primaryColor ?? '#1e6fd0',
+      onPrimary: config.branding.onPrimaryColor ?? '#ffffff',
+      icon: config.branding.launcherIcon ?? '§',
+    });
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(script);
   };
 }
 

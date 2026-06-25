@@ -94,14 +94,21 @@ A frontend és a backend közös szerződése; nincs benne futtatható logika, c
   - `deps.ts` — `ApiDeps` (config + LLM-kliensek + env, egyszer felépítve induláskor).
   - `middleware.ts` — `corsAndCsp` (csak az engedett originek), `rateLimit` (IP-alapú).
   - `sse.ts` — SSE-fejlécek + `sendEvent` (tipizált `AskEvent` kiírása).
-  - `handlers.ts` — a végpontok: `health`, `config`, **`ask`** (a teljes RAG-út), `reindex`.
+  - `handlers.ts` — a végpontok: `health`, `config`, **`ask`** (a teljes RAG-út), `reindex`,
+    és a `/widget.js` betöltő.
+  - `widget.ts` — az önálló, függőség nélküli **lebegő launcher-betöltő**, amit a `GET /widget.js`
+    szolgál ki (`createWidgetHandler`); az origin/cím/szín a kérésből + a `TenantConfig`-ból
+    injektálva (lásd DECISIONS #14).
 
 ### `frontend/` — Angular 21 chat UI
-Beágyazható (iframe), zoneless + signalek. A brandinget a `GET /api/config`-ból tölti.
+A lebegő widgetbe ágyazva (DECISIONS #14) vagy önállóan nyitva; zoneless + signalek. A
+brandinget a `GET /api/config`-ból tölti.
 - `src/app/api.ts` — `AssistantApi`: `getConfig()` + `ask()` (a POST `/api/ask` SSE-streamjét
   `fetch` + `ReadableStream` segítségével fogyasztja).
 - `src/app/app.ts` / `app.html` / `app.css` — a chat-komponens (üzenetek signalként,
-  streamelt válasz, források, iframe auto-magasság `postMessage`-dzsel).
+  streamelt válasz, források). Fill-height elrendezés (görgő üzenetlista + lent rögzített
+  beíró), ami teljes oldalon és a kis widget-panelben is működik; a `?embed=widget` elrejti az
+  app saját fejlécét (a címsort a widget adja).
 - `proxy.conf.json` — dev közben a `/api`-t a backendre proxyzza.
 
 ## Belépési pontok

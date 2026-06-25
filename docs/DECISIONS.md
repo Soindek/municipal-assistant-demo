@@ -182,18 +182,29 @@ confirmation — we deliberately did not invent a rationale.
 
 ---
 
-## 10. Deploy / hosting direction
+## 10. Deploy: Hetzner + Docker Compose + Caddy + GitHub Actions
 
-- **Decision:** `> TODO: awaits confirmation.` There is **no** deploy artifact in the repo
-  (no `Dockerfile`, `Caddyfile`, or `.github/workflows/`), and point 12 of the BRIEF
-  explicitly lists hosting as an open question.
+- **Decision:** A single small server (Hetzner CX22, Ubuntu) runs the stack with **Docker
+  Compose**: **Caddy** (auto-HTTPS reverse proxy) + **backend** (Node; also serves the built
+  Angular UI on the same origin) + **db** (pgvector). CI/CD: a push to `main` builds the
+  backend image (frontend baked in) via **GitHub Actions**, pushes it to **GHCR**, then SSHes
+  in to `pull` + `up -d` (see [docker-compose.prod.yml](../docker-compose.prod.yml),
+  [Caddyfile](../Caddyfile), [backend/Dockerfile](../backend/Dockerfile),
+  [deploy.yml](../.github/workflows/deploy.yml), [DEPLOY.md](DEPLOY.md)).
 - **Context:** The backend is a Node server (Express, SSE), the frontend a static Angular
-  build; we need to decide where they go and with what pipeline.
-- **Why:** `> TODO: rationale to be confirmed.` (The direction raised verbally is **Hetzner + Docker
-  + Caddy + GitHub Actions**, but there is no trace of this in the repo yet — we deliberately do not
-  record it as an implemented decision.)
-- **Alternative:** `> TODO: the concrete alternatives are to be recorded together with the hosting decision.`
-- **Status:** Deferred.
+  build; the goal was one small, low-cost VPS with simple ops. (Point 12 of the BRIEF listed
+  hosting as an open question; now implemented.)
+- **Why:** (a) One box, one `docker compose` — minimal moving parts. (b) Caddy gives automatic
+  TLS, no manual certs. (c) The backend serving the built frontend = a single container/origin
+  (no separate static host, no UI↔API CORS). (d) **tsx runtime:** the image runs the TS backend
+  (+ the TS-source workspace packages) directly, so the only build step is the Angular bundle.
+  (e) Secrets live ONLY in the server-side `.env` (never committed); the DB persists in the
+  `db_data` volume and the deploy is `pull` + `up -d` only — **never `down -v`** (which would
+  wipe the indexed corpus).
+- **Alternative:** (a) PaaS (Render/Fly/Railway) — simpler, but more cost/lock-in and less
+  control on a hobby budget. (b) Kubernetes — vastly over-engineered for one tenant.
+  (c) A separate static host for the frontend — an extra origin + CORS for no benefit here.
+- **Status:** Implemented (was deferred).
 
 ---
 
@@ -263,3 +274,30 @@ confirmation — we deliberately did not invent a rationale.
   the answers are correct (kommunális 12.000 Ft, építmény 220 Ft/m², telek), the controls did not
   regress (ebtartás #1, tűzifa #3→#1, nagyterem —→#1). This replaces the `feat/retrieval-rerank` PR
   (to be closed).
+
+---
+
+## 14. Floating widget embed instead of an inline iframe
+
+- **Decision:** The host site embeds the chat as a **floating launcher widget**
+  (Intercom/Crisp style), loaded with a single `<script src=".../widget.js" defer>`, rather
+  than a hand-placed inline iframe. The backend serves a self-contained, dependency-free
+  loader at `GET /widget.js` ([widget.ts](../backend/src/api/widget.ts) + `createWidgetHandler`);
+  the app detects `?embed=widget` and switches to a compact, fill-height panel layout.
+- **Context:** The host (`vacratotikozosseg.hu`, WordPress) needs a **site-wide** embed that
+  doesn't slow page load and doesn't require placing/sizing an iframe by hand on each page.
+- **Why:** (a) **Lazy:** the iframe is created only on first open, so the host page's initial
+  load is untouched. (b) **One line, site-wide:** a single script tag in a header/footer
+  plugin — no per-page markup. (c) **Self-contained:** vanilla JS, no framework on the host,
+  namespaced (`maw-`) styles and a very high `z-index` — minimal collision with the host theme.
+  (d) **Origin-derived:** the iframe origin comes from the script's own request, so the same
+  build works on any deployment; title/accent come from `TenantConfig`. (e) **Accessible:**
+  `aria-label`s, Esc-to-close, focus return, responsive (desktop panel, fullscreen on mobile),
+  and a discrete one-time greeting bubble that never auto-opens aggressively.
+- **Alternative:** (a) Inline iframe with `postMessage` auto-height (the earlier embed) —
+  needs per-page placement and grows the page; replaced. (b) A web-component / framework widget
+  — a heavier dependency on the host. (c) Shadow DOM isolation — stronger style isolation, but
+  an injected `<style>` + a namespace is enough for WordPress and simpler.
+- **Status:** Valid. Embedding stays gated by `TenantConfig.embed.allowedOrigins` (apex + www),
+  which drives both CORS and the CSP `frame-ancestors`; it assumes the host page has no CSP that
+  blocks a cross-origin script / inline style (rare on WordPress).

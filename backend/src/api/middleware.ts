@@ -9,9 +9,15 @@ const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
  */
 export function corsAndCsp(config: TenantConfig): RequestHandler {
   const allowed = new Set(config.embed.allowedOrigins);
-  const frameAncestors = config.embed.allowedOrigins.length
-    ? config.embed.allowedOrigins.join(' ')
-    : "'none'";
+  // In development also let localhost embed (frame) the app, so the widget can be
+  // tried locally; production (NODE_ENV=production) stays locked to the configured
+  // origins only.
+  const devAncestors =
+    process.env.NODE_ENV === 'production'
+      ? []
+      : ['http://localhost:*', 'http://127.0.0.1:*'];
+  const ancestors = [...config.embed.allowedOrigins, ...devAncestors];
+  const frameAncestors = ancestors.length ? ancestors.join(' ') : "'none'";
 
   return (req, res, next) => {
     const origin = req.headers.origin;

@@ -94,14 +94,21 @@ The shared contract between frontend and backend; it contains no executable logi
   - `deps.ts` — `ApiDeps` (config + LLM clients + env, built once at startup).
   - `middleware.ts` — `corsAndCsp` (only the allowed origins), `rateLimit` (IP-based).
   - `sse.ts` — SSE headers + `sendEvent` (writing out a typed `AskEvent`).
-  - `handlers.ts` — the endpoints: `health`, `config`, **`ask`** (the full RAG path), `reindex`.
+  - `handlers.ts` — the endpoints: `health`, `config`, **`ask`** (the full RAG path), `reindex`,
+    and the `/widget.js` loader.
+  - `widget.ts` — the self-contained, dependency-free **floating-launcher loader** served at
+    `GET /widget.js` (`createWidgetHandler`); origin/title/accent injected from the request +
+    `TenantConfig` (see DECISIONS #14).
 
 ### `frontend/` — Angular 21 chat UI
-Embeddable (iframe), zoneless + signals. Loads branding from `GET /api/config`.
+Embedded via the floating widget (DECISIONS #14) or opened standalone; zoneless + signals.
+Loads branding from `GET /api/config`.
 - `src/app/api.ts` — `AssistantApi`: `getConfig()` + `ask()` (consumes the SSE stream of
   POST `/api/ask` via `fetch` + `ReadableStream`).
 - `src/app/app.ts` / `app.html` / `app.css` — the chat component (messages as signals,
-  streamed answer, sources, iframe auto-height via `postMessage`).
+  streamed answer, sources). Fill-height layout (scrollable messages + pinned composer) that
+  works full-page and in the small widget panel; `?embed=widget` hides the in-app header (the
+  widget supplies the title bar).
 - `proxy.conf.json` — proxies `/api` to the backend during dev.
 
 ## Entry points

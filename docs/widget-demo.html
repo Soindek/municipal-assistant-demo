@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget demó — Önkormányzati Ügysegéd</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+        margin: 0;
+        padding: 48px 24px;
+        color: #1a1a1a;
+        background: #f6f7f9;
+        line-height: 1.6;
+      }
+      .page {
+        max-width: 680px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 28px 32px;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>Példa befogadó oldal</h1>
+      <p>
+        Ez egy demó „host" oldal (mintha egy WordPress aloldal volna). A jobb alsó sarokban
+        meg kell jelennie az <strong>Ügysegéd</strong> lebegő gombnak — kattintásra nyílik a chat.
+      </p>
+      <p>
+        A beágyazás a lap alján lévő egyetlen <code>&lt;script&gt;</code> sor. Élesben ugyanez,
+        csak az URL <code>https://ugyseged.vacratotikozosseg.hu/widget.js</code>.
+      </p>
+    </div>
+
+    <!-- A lokál backend szolgálja ki a widget.js-t (PORT=3001 az alap dev portod).
+         Élesben: https://ugyseged.vacratotikozosseg.hu/widget.js -->
+    <script src="http://localhost:3001/widget.js" defer></script>
+  </body>
+</html>

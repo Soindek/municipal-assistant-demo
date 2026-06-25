@@ -45,6 +45,14 @@ export class App {
   protected readonly sending = signal(false);
   protected readonly configError = signal<string | null>(null);
 
+  /** True when loaded inside the floating widget panel (?embed=widget). The
+   *  widget draws its own title bar, so the in-app header is hidden and the
+   *  layout fills the panel (see app.css). */
+  protected readonly embedded = signal(
+    typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('embed') === 'widget',
+  );
+
   protected readonly maxChars = computed(() => this.config()?.limits.maxQuestionChars ?? 1000);
   protected readonly remaining = computed(() => this.maxChars() - this.draft().length);
   protected readonly canSend = computed(() => {
