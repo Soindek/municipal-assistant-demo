@@ -99,6 +99,8 @@ export function createWidgetHandler(deps: ApiDeps): RequestHandler {
       accent: config.branding.primaryColor ?? '#1e6fd0',
       onPrimary: config.branding.onPrimaryColor ?? '#ffffff',
       icon: config.branding.launcherIcon ?? '§',
+      version: appVersion(),
+      versionBadge: config.branding.versionBadge ?? '',
     });
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=300');

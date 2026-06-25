@@ -308,15 +308,16 @@
   text-decoration: underline;
 }
 
-.assistant__badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  vertical-align: middle;
+/* Release status + version next to the title, e.g. "| BETA · v0.1.0". */
+.assistant__version {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.assistant__version::before {
+  content: '|';
+  margin: 0 7px;
+  opacity: 0.5;
 }

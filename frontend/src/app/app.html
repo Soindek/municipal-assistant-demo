@@ -9,7 +9,12 @@
       @if (config()?.branding?.logoUrl; as logo) {
         <img class="assistant__logo" [src]="logo" alt="" />
       }
-      <h1 class="assistant__title">{{ config()?.branding?.assistantName ?? 'Önkormányzati Ügysegéd' }}</h1>
+      <h1 class="assistant__title">
+        {{ config()?.branding?.assistantName ?? 'Önkormányzati Ügysegéd' }}
+        @if (versionLabel()) {
+          <span class="assistant__version">{{ versionLabel() }}</span>
+        }
+      </h1>
     </header>
   }
 
@@ -128,8 +133,6 @@
         @if (cfg.branding.contactEmail) {
           <span> · Kapcsolat: <a [href]="'mailto:' + cfg.branding.contactEmail">{{ cfg.branding.contactEmail }}</a></span>
         }
-        @if (cfg.version) {<span> · v{{ cfg.version }}</span>}
-        @if (cfg.branding.versionBadge) {<span class="assistant__badge">{{ cfg.branding.versionBadge }}</span>}
       </span>
     </footer>
   }

@@ -16,6 +16,8 @@ export function buildWidgetScript(opts: {
   accent: string;
   onPrimary: string;
   icon: string;
+  version: string;
+  versionBadge: string;
 }): string {
   const cfg = JSON.stringify({
     origin: opts.appOrigin,
@@ -24,6 +26,8 @@ export function buildWidgetScript(opts: {
     accent: opts.accent,
     onPrimary: opts.onPrimary,
     icon: opts.icon,
+    version: opts.version,
+    versionBadge: opts.versionBadge,
   });
 
   // The body below is plain browser JS (no backticks / template literals, so it
@@ -55,6 +59,8 @@ export function buildWidgetScript(opts: {
       "." + NS + "-panel--open{opacity:1;visibility:visible;transform:none}",
       "." + NS + "-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:" + a + ";color:" + fg + ";font:600 15px/1.2 " + FONT + "}",
       "." + NS + "-title{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+      "." + NS + "-ver{font-weight:400;font-size:12px;opacity:.85}",
+      "." + NS + "-ver::before{content:'|';margin:0 7px;opacity:.55}",
       "." + NS + "-close{border:0;background:transparent;color:" + fg + ";cursor:pointer;padding:4px;border-radius:8px;display:inline-flex;line-height:0}",
       "." + NS + "-close:hover{background:rgba(0,0,0,.12)}",
       "." + NS + "-close:focus-visible{outline:2px solid rgba(0,0,0,.4);outline-offset:1px}",
@@ -103,6 +109,15 @@ export function buildWidgetScript(opts: {
     var title = doc.createElement("span");
     title.className = NS + "-title";
     title.textContent = CFG.title;
+    var verParts = [];
+    if (CFG.versionBadge) verParts.push(CFG.versionBadge);
+    if (CFG.version) verParts.push("v" + CFG.version);
+    if (verParts.length) {
+      var ver = doc.createElement("span");
+      ver.className = NS + "-ver";
+      ver.textContent = verParts.join(" · ");
+      title.appendChild(ver);
+    }
     var close = doc.createElement("button");
     close.type = "button";
     close.className = NS + "-close";

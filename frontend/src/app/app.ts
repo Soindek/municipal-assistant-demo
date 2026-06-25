@@ -59,6 +59,16 @@ export class App {
       new URLSearchParams(window.location.search).get('embed') === 'widget',
   );
 
+  /** "BETA · v0.1.0" shown next to the title (badge + package.json version). */
+  protected readonly versionLabel = computed(() => {
+    const cfg = this.config();
+    if (!cfg) return '';
+    const parts: string[] = [];
+    if (cfg.branding.versionBadge) parts.push(cfg.branding.versionBadge);
+    if (cfg.version) parts.push(`v${cfg.version}`);
+    return parts.join(' · ');
+  });
+
   protected readonly maxChars = computed(() => this.config()?.limits.maxQuestionChars ?? 1000);
   protected readonly remaining = computed(() => this.maxChars() - this.draft().length);
   protected readonly canSend = computed(() => {
