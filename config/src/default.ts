@@ -15,9 +15,10 @@ export const defaultConfig: DeepPartial<TenantConfig> = {
     assistantName: 'Önkormányzati Ügysegéd',
     launcherIcon: '§',
     welcomeMessage:
-      'Üdvözlöm! A település hivatalos dokumentumai alapján segítek. Miben lehetek a segítségére?',
+      'Üdvözlöm! A település hivatalos dokumentumai alapján dolgozom. Miben lehetek a segítségére?',
     disclaimer:
       'Ez tájékoztatás, nem hivatalos jogi tanács. Kérjük, ellenőrizze a megjelölt forrásban.',
+    attribution: 'Fejlesztő: Copodium Kft. — minden jog fenntartva · Kapcsolat: info@sigmoit.com',
   },
 
   embed: {

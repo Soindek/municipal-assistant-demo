@@ -37,6 +37,9 @@ export interface TenantConfig {
     welcomeMessage: string;
     /** Legal disclaimer (always visible / on every answer). */
     disclaimer: string;
+    /** Developer/copyright attribution line shown under the disclaimer.
+     *  Product-wide (same developer for every tenant); set in default.ts. */
+    attribution?: string;
   };
 
   embed: {

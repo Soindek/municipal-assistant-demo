@@ -121,6 +121,11 @@
   </form>
 
   @if (config(); as cfg) {
-    <footer class="assistant__disclaimer">{{ cfg.branding.disclaimer }}</footer>
+    <footer class="assistant__disclaimer">
+      {{ cfg.branding.disclaimer }}
+      @if (cfg.branding.attribution) {
+        <span class="assistant__attribution">{{ cfg.branding.attribution }}</span>
+      }
+    </footer>
   }
 </main>

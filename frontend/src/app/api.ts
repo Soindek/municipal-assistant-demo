@@ -9,6 +9,7 @@ export interface UiConfig {
     assistantName: string;
     welcomeMessage: string;
     disclaimer: string;
+    attribution: string | null;
     primaryColor: string | null;
     onPrimaryColor: string | null;
     logoUrl: string | null;

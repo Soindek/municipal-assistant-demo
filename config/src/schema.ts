@@ -21,6 +21,7 @@ export const tenantConfigSchema = z.object({
     launcherIcon: z.string().optional(),
     welcomeMessage: z.string().min(1),
     disclaimer: z.string().min(1),
+    attribution: z.string().optional(),
   }),
 
   embed: z.object({

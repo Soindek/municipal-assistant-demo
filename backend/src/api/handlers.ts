@@ -67,6 +67,7 @@ export function createConfigHandler(deps: ApiDeps): RequestHandler {
         assistantName: config.branding.assistantName,
         welcomeMessage: config.branding.welcomeMessage,
         disclaimer: config.branding.disclaimer,
+        attribution: config.branding.attribution ?? null,
         primaryColor: config.branding.primaryColor ?? null,
         onPrimaryColor: config.branding.onPrimaryColor ?? null,
         logoUrl: config.branding.logoUrl ?? null,
