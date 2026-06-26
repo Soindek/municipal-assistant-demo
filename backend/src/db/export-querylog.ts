@@ -15,6 +15,18 @@ function csvField(value: unknown): string {
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
+/** "Title, 12. § (3. o.) — https://… | Title2 — https://…" */
+function formatSources(sources: { documentTitle: string; sectionRef?: string; pageNumber?: number; sourceUrl: string }[]): string {
+  return sources
+    .map((s) => {
+      let label = s.documentTitle;
+      if (s.sectionRef) label += `, ${s.sectionRef}`;
+      if (s.pageNumber) label += ` (${s.pageNumber}. o.)`;
+      return `${label} — ${s.sourceUrl}`;
+    })
+    .join(' | ');
+}
+
 async function main(): Promise<void> {
   const limit = Math.min(Math.max(Number(process.argv[2]) || 500, 1), 5000);
   const rows = await listRecentQueryLog(limit);
@@ -27,8 +39,8 @@ async function main(): Promise<void> {
     'answer',
     'feedback',
     'feedback_comment',
-    'num_chunks',
-    'retrieved_chunk_ids',
+    'cited_sources',
+    'retrieved_docs',
   ];
   const lines = [headers.join(',')];
   for (const r of rows) {
@@ -41,8 +53,8 @@ async function main(): Promise<void> {
         r.answer,
         r.feedback,
         r.feedbackComment,
-        r.retrievedChunkIds.length,
-        r.retrievedChunkIds.join(' '),
+        formatSources(r.sources), // what the answer cited (the "Források")
+        r.retrievedDocTitles.join(' | '), // what was in the rerank context (diagnostic)
       ]
         .map(csvField)
         .join(','),
