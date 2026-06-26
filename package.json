@@ -1,6 +1,6 @@
 {
   "name": "municipal-assistant",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Önkormányzati Ügysegéd — embeddable RAG chat over municipal documents (MVP tenant: Vácrátót).",
   "type": "module",
