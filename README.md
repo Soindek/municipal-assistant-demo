@@ -44,18 +44,23 @@ Embedded as a floating widget on the host site, in order:
 
 ## Features
 
-- **Hybrid search:** semantic (pgvector) + Hungarian full-text (GIN), with RRF fusion,
-  with a slight **freshness weighting** (the more current document ranks higher).
-- **Guardrails:** below the `minScore` threshold an "I don't know" answer, mandatory
-  source attribution, legal disclaimer, IP-based rate limit, CORS + CSP `frame-ancestors`.
-- **Source adapters** (seam #1): `manual-upload`, `dlp-library` (the vacratot.hu
-  curated Document Library Pro listing) and `njt-decrees` (in-force decrees +
-  attachments from the National Legislation Database). The old `wordpress-accordion` remains in the registry,
-  but the Vácrátót config now uses `dlp-library`.
-- **Scanned PDF → Hungarian OCR** (Tesseract/`tesseract.js`, local, no system dependency).
-- **Content-based categorization** (from the document's text, not the file name).
-- **Query logging** (`query_log`) for quality measurement.
-- **SSE-streamed answer** + embeddable Angular UI with auto-height.
+- **Hybrid retrieval:** semantic (pgvector) + Hungarian full-text (GIN) with RRF fusion
+  and freshness weighting, plus a **guaranteed authoritative shortlist** and an
+  **authority-aware LLM rerank** (see [docs/RETRIEVAL_NOTES.md](docs/RETRIEVAL_NOTES.md)).
+- **Guardrails:** an "I don't know" answer below the `minScore` threshold, mandatory
+  source attribution, legal disclaimer, IP rate limit, CORS + CSP `frame-ancestors`.
+- **Source adapters** (seam #1): `manual-upload`, `dlp-library` (curated WordPress
+  Document Library Pro), `njt-decrees` (in-force decrees + reasoning + annexes from the
+  National Legislation Database), `google-drive` (a public transparency folder) and
+  `wordpress-pages` (office/service pages).
+- **Scanned PDF → Hungarian OCR** (`tesseract.js`, local, no system dependency).
+- **Embeddable floating chat widget** — one `<script>` tag, lazily-loaded iframe,
+  branding/colors/icon from the `TenantConfig`.
+- **👍/👎 feedback** with an optional comment, logged in `query_log` alongside the
+  cited sources for quality review.
+- **SSE-streamed answers**; an Angular 21 (signals) UI.
+- **Deployment:** Hetzner + Docker Compose + Caddy (automatic HTTPS) + GitHub Actions
+  CI/CD (build → GHCR → SSH deploy).
 
 ## Monorepo layout (npm workspaces)
 
@@ -64,7 +69,7 @@ municipal-assistant/
 ├─ shared/      # tenant-agnostic types (DTOs, DocumentSource, TenantConfig)
 ├─ config/      # config loader + tenants (seam #2)  — config/tenants/vacratot.ts
 ├─ backend/     # Express API, ingestion pipeline, DB, RAG, OCR
-└─ frontend/    # Angular 21 chat UI (embeddable in an iframe)
+└─ frontend/    # Angular 21 chat UI (embeddable as a floating widget)
 ```
 
 ## Prerequisites
@@ -192,24 +197,21 @@ no CORS trouble during development.
 
 **Build:** `npm run build -w frontend` → static files in `frontend/dist/`.
 
-### Embedding in an iframe (auto-height)
+### Embedding (floating widget)
 
-The app signals the content height to the parent page via `postMessage` (no
-internal scrolling). On the embedding WordPress subpage:
+The backend serves a self-contained loader at `/widget.js`. Add one line to the host
+site (e.g. a WordPress header/footer script plugin, site-wide):
 
 ```html
-<iframe id="ugyseged" src="https://<host>/ugyseged" style="width:100%;border:0"></iframe>
-<script>
-  window.addEventListener('message', (e) => {
-    if (e.data?.type === 'municipal-assistant:resize') {
-      document.getElementById('ugyseged').style.height = e.data.height + 'px';
-    }
-  });
-</script>
+<script src="https://<host>/widget.js" defer></script>
 ```
 
-> `TenantConfig.embed.allowedOrigins` (CORS + CSP `frame-ancestors`) controls
-> which pages may embed it.
+It renders a floating launcher (bottom-right) that opens a panel with the chat in an
+iframe — created **lazily on first open**, so it never slows the host page's load. The
+launcher label, title, colors and icon come from the `TenantConfig`.
+
+> `TenantConfig.embed.allowedOrigins` (CORS + CSP `frame-ancestors`) controls which
+> pages may embed it. See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Useful commands
 

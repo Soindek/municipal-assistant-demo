@@ -42,18 +42,23 @@ A befogadó oldalon lebegő widgetként beágyazva, sorrendben:
 
 ## Funkciók
 
-- **Hibrid keresés:** szemantikus (pgvector) + magyar full-text (GIN), RRF-fúzióval,
-  enyhe **frissesség-súlyozással** (a hatályosabb dokumentum előrébb).
+- **Hibrid keresés:** szemantikus (pgvector) + magyar full-text (GIN) RRF-fúzióval és
+  frissesség-súlyozással, plusz egy **garantált hiteles-shortlist** és egy
+  **tekintély-tudatos LLM-rerank** (lásd [docs/RETRIEVAL_NOTES.hu.md](docs/RETRIEVAL_NOTES.hu.md)).
 - **Guardrailek:** `minScore` küszöb alatt „nem tudom" válasz, kötelező
   forrásmegjelölés, jogi disclaimer, IP-alapú rate limit, CORS + CSP `frame-ancestors`.
-- **Forrás-adapterek** (varrat #1): `manual-upload`, `dlp-library` (a vacratot.hu
-  kurált Document Library Pro listája) és `njt-decrees` (hatályos rendeletek +
-  mellékletek a Nemzeti Jogszabálytárból). A régi `wordpress-accordion` a registryben
-  marad, de a Vácrátót-config már a `dlp-library`-t használja.
-- **Szkennelt PDF → magyar OCR** (Tesseract/`tesseract.js`, lokális, nincs rendszerfüggőség).
-- **Tartalom-alapú kategorizálás** (a dokumentum szövegéből, nem a fájlnévből).
-- **Kérdésnaplózás** (`query_log`) minőségméréshez.
-- **SSE-streamelt válasz** + beágyazható Angular UI auto-magassággal.
+- **Forrás-adapterek** (varrat #1): `manual-upload`, `dlp-library` (kurált WordPress
+  Document Library Pro), `njt-decrees` (hatályos rendeletek + indokolás + mellékletek a
+  Nemzeti Jogszabálytárból), `google-drive` (nyilvános üvegzseb-mappa) és
+  `wordpress-pages` (hivatali/szolgáltatási oldalak).
+- **Szkennelt PDF → magyar OCR** (`tesseract.js`, lokális, nincs rendszerfüggőség).
+- **Beágyazható lebegő chat-widget** — egyetlen `<script>` tag, lustán töltött iframe,
+  arculat/színek/ikon a `TenantConfig`-ból.
+- **👍/👎 visszajelzés** opcionális kommenttel, a `query_log`-ba mentve az **idézett
+  forrásokkal** együtt, kézi minőség-ellenőrzéshez.
+- **SSE-streamelt válaszok**; Angular 21 (signalek) UI.
+- **Deploy:** Hetzner + Docker Compose + Caddy (automatikus HTTPS) + GitHub Actions
+  CI/CD (build → GHCR → SSH deploy).
 
 ## Monorepo felépítés (npm workspaces)
 
@@ -62,7 +67,7 @@ municipal-assistant/
 ├─ shared/      # bérlő-agnosztikus típusok (DTO-k, DocumentSource, TenantConfig)
 ├─ config/      # config-betöltő + tenantok (varrat #2)  — config/tenants/vacratot.ts
 ├─ backend/     # Express API, ingestion pipeline, DB, RAG, OCR
-└─ frontend/    # Angular 21 chat UI (iframe-be ágyazható)
+└─ frontend/    # Angular 21 chat UI (lebegő widgetként ágyazható)
 ```
 
 ## Előfeltételek
@@ -190,24 +195,21 @@ nincs CORS-gond fejlesztés közben.
 
 **Build:** `npm run build -w frontend` → statikus fájlok a `frontend/dist/`-ben.
 
-### Beágyazás iframe-be (auto-magasság)
+### Beágyazás (lebegő widget)
 
-Az app a tartalom magasságát `postMessage`-dzsel jelzi a szülő oldalnak (nincs
-belső görgetés). A beágyazó WordPress-aloldalon:
+A backend egy önálló betöltőt szolgál ki a `/widget.js`-en. Egyetlen sor a befogadó
+oldalra (pl. WordPress fejléc/lábléc szkript-plugin, site-wide):
 
 ```html
-<iframe id="ugyseged" src="https://<host>/ugyseged" style="width:100%;border:0"></iframe>
-<script>
-  window.addEventListener('message', (e) => {
-    if (e.data?.type === 'municipal-assistant:resize') {
-      document.getElementById('ugyseged').style.height = e.data.height + 'px';
-    }
-  });
-</script>
+<script src="https://<host>/widget.js" defer></script>
 ```
 
+Lebegő gombot rajzol (jobb alsó sarok), ami panelben, iframe-ben nyitja a chatet — az
+iframe **csak az első megnyitáskor** jön létre, így nem lassítja a befogadó oldalt. A
+gomb felirata, címe, színei és ikonja a `TenantConfig`-ból jön.
+
 > A `TenantConfig.embed.allowedOrigins` (CORS + CSP `frame-ancestors`) szabályozza,
-> mely oldalak ágyazhatják be.
+> mely oldalak ágyazhatják be. Lásd: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Hasznos parancsok
 
