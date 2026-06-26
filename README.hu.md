@@ -2,6 +2,8 @@
 
 # Önkormányzati Ügysegéd (`municipal-assistant`)
 
+**🟢 Élő demó:** **https://ugyseged.vacratotikozosseg.hu** — MVP / showcase. Az aktív termékfejlesztés privát repóban folytatódik.
+
 > **A projektről.** Production-jellegű, magyar nyelvű RAG-asszisztens, végponttól végpontig
 > **AI-augmented delivery**-ként építve: egy önkormányzat **hivatalos dokumentumai alapján**,
 > forrásmegjelöléssel és „nem tudom" guardraillel válaszol. A lényeg a forrás-adapterekben
@@ -22,6 +24,21 @@ szemantikus + magyar full-text).
 A termék **bérlő-agnosztikus**; minden településspecifikus dolog két „varrat" mögé
 kerül: a `DocumentSource` adapter (forrás-felfedezés/letöltés) és a `TenantConfig`
 (arculat, források, RAG-paraméterek). Az **MVP bérlő: Vácrátót**.
+
+## Képernyőképek
+
+A befogadó oldalon lebegő widgetként beágyazva, sorrendben:
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/01-welcome.png" alt="A megnyitott widget az üdvözlő üzenettel"><br><sub><b>1. Lebegő widget — üdvözlés</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/02-asking.png" alt="Kérdés feltevése, streamelt válasz"><br><sub><b>2. Kérdés feltevése (streamelt)</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/03-sources.png" alt="Forrásmegjelölt válasz visszajelzéssel"><br><sub><b>3. Forrásmegjelölt válasz + 👍/👎</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/04-feedback.png" alt="Negatív visszajelzés opcionális kommenttel"><br><sub><b>4. 👎 opcionális kommenttel</b></sub></td>
+  </tr>
+</table>
 
 ## Funkciók
 

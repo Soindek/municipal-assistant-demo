@@ -2,6 +2,8 @@
 
 # Municipal Assistant (`municipal-assistant`)
 
+**🟢 Live demo:** **https://ugyseged.vacratotikozosseg.hu** — MVP / showcase. Active product development continues in a private repository.
+
 > **About this project.** A production-shaped, Hungarian-language RAG assistant built
 > end-to-end as an **AI-augmented delivery**: it answers residents' questions **strictly
 > from a municipality's official documents**, with source citation and an "I don't know"
@@ -24,6 +26,21 @@ semantic + Hungarian full-text).
 The product is **tenant-agnostic**; everything municipality-specific sits behind two "seams":
 the `DocumentSource` adapter (source discovery/download) and the `TenantConfig`
 (branding, sources, RAG parameters). The **MVP tenant: Vácrátót**.
+
+## Screenshots
+
+Embedded as a floating widget on the host site, in order:
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/01-welcome.png" alt="Opened widget with the welcome message"><br><sub><b>1. Floating widget — welcome</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/02-asking.png" alt="Asking a question, streamed answer"><br><sub><b>2. Asking a question (streamed)</b></sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/03-sources.png" alt="Answer with cited sources and feedback"><br><sub><b>3. Answer with cited sources + 👍/👎</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/04-feedback.png" alt="Thumbs-down with an optional comment"><br><sub><b>4. 👎 with an optional comment</b></sub></td>
+  </tr>
+</table>
 
 ## Features
 
